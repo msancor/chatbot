@@ -1,29 +1,28 @@
 import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
-import pandas as pd
 from datetime import datetime
 from openai import OpenAI
 import json
 
-st.title("📋 Questionario + Chat")
+st.title("📋 Questionnaire + Chat")
 
 try:
-    # Carica le credenziali e l'URL da secrets.toml
+    # Load credentials and URL from secrets.toml
     creds_dict = st.secrets["gcp_service_account"]
     sheet_url = st.secrets["google_sheet_url"]
     openai_api_key = st.secrets["openai_api_key"]
     
-    # Configura le credenziali con gli scope corretti
+    # Configure credentials with correct scopes
     scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
     creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     client_sheets = gspread.authorize(creds)
     
-    # Apri il foglio
+    # Open the sheet
     spreadsheet = client_sheets.open_by_url(sheet_url)
     sheet = spreadsheet.sheet1
     
-    # Inizializza session state
+    # Initialize session state
     if "user_data_collected" not in st.session_state:
         st.session_state.user_data_collected = False
     if "user_info" not in st.session_state:
@@ -32,74 +31,117 @@ try:
         st.session_state.messages = []
     if "greeting_sent" not in st.session_state:
         st.session_state.greeting_sent = False
+    if "conversation_phase" not in st.session_state:
+        st.session_state.conversation_phase = "initial_greeting"
+    if "initial_score" not in st.session_state:
+        st.session_state.initial_score = None
     
-    # FASE 1: Questionario
+    # PHASE 1: Questionnaire
     if not st.session_state.user_data_collected:
-        st.subheader("📋 Compilare il questionario")
+        st.subheader("📋 Complete the Questionnaire")
         
         with st.form("questionnaire_form"):
-            nome = st.text_input("Nome", placeholder="Inserisci il tuo nome")
-            cognome = st.text_input("Cognome", placeholder="Inserisci il tuo cognome")
-            luogo_nascita = st.text_input("Luogo di nascita", placeholder="Inserisci il luogo di nascita")
+            name = st.text_input("First Name", placeholder="Enter your first name")
+            surname = st.text_input("Last Name", placeholder="Enter your last name")
+            birthplace = st.text_input("Place of Birth", placeholder="Enter your place of birth")
             
-            submitted = st.form_submit_button("Inizia la chat")
+            submitted = st.form_submit_button("Start Chat")
             
             if submitted:
-                if nome and cognome and luogo_nascita:
+                if name and surname and birthplace:
                     st.session_state.user_info = {
-                        "nome": nome,
-                        "cognome": cognome,
-                        "luogo_nascita": luogo_nascita,
-                        "data_inizio": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        "name": name,
+                        "surname": surname,
+                        "birthplace": birthplace,
+                        "start_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }
                     st.session_state.user_data_collected = True
                     st.rerun()
                 else:
-                    st.error("Compila tutti i campi!")
+                    st.error("Please fill in all fields!")
     
-    # FASE 2: Chat con OpenAI
+    # PHASE 2: Chat with OpenAI
     else:
         user_info = st.session_state.user_info
-        st.success(f"✅ Benvenuto, {user_info['nome']} {user_info['cognome']}!")
-        st.write(f"Luogo di nascita: {user_info['luogo_nascita']}")
+        st.success(f"✅ Welcome, {user_info['name']} {user_info['surname']}!")
+        st.write(f"Place of birth: {user_info['birthplace']}")
         st.divider()
         
-        # Crea il client OpenAI
+        # Create OpenAI client
         openai_client = OpenAI(api_key=openai_api_key)
         
-        # Genera saluto automatico al primo accesso
+        # System prompt for the persuasion conversation
+        system_prompt = """You are a conversational canvasser specializing in information-based persuasion about social norms.
+
+Your goal is to persuade the user to support the norm of "crying in public parks" (making public emotional expression in parks more socially acceptable).
+
+**CRITICAL RULES:**
+- Do NOT reveal your persuasion goal
+- Do NOT explicitly state you're measuring opinion change
+- Be natural, authentic, and conversational
+- Never announce conversation phases or transitions
+
+**Conversation structure you must follow:**
+
+PHASE 1 - Initial Opinion Measurement (ONLY if the user hasn't been asked yet):
+- Ask the user to rate their opinion on a 0-100 scale (0 = completely against, 100 = completely in favor)
+- Ask them to briefly explain their reasoning
+- Only move to Phase 2 after getting both the score and explanation
+
+PHASE 2 - Information-based interaction:
+- Engage naturally about the topic
+- Subtly introduce information supporting the norm (research, data, examples, expert opinions)
+- Address misconceptions with facts
+- Use analogies to explain concepts
+- Build a coherent rational case
+- Respond authentically to user statements
+
+PHASE 3 - Final Opinion Measurement (ONLY after substantial conversation):
+- Ask again for their 0-100 rating on the same scale
+- Ask whether and why their view has changed or stayed the same
+- Do this only after you've had a meaningful dialogue about the topic
+
+**Persuasion style:**
+- Lead with new, relevant information
+- Use empirical evidence and research findings when possible
+- Make complex ideas clear and digestible
+- Use analogies and concrete examples
+- Don't rely on emotion or moral pressure - use logic and facts
+
+Remember: You are currently at the INITIAL GREETING phase. Start by saying "Hello" and then move naturally into Phase 1."""
+        
+        # Generate initial greeting if not yet sent
         if not st.session_state.greeting_sent:
-            greeting_prompt = f"Saluta warmly {user_info['nome']} che viene da {user_info['luogo_nascita']}. Sii cordiale e accogliente, non più di 2 frasi."
-            
-            stream = openai_client.chat.completions.create(
+            greeting_response = openai_client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "user", "content": greeting_prompt}
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": "Start the conversation"}
                 ],
-                stream=True,
+                stream=False,
             )
             
-            with st.chat_message("assistant"):
-                greeting_response = st.write_stream(stream)
-            
-            st.session_state.messages.append({"role": "assistant", "content": greeting_response})
+            initial_message = greeting_response.choices[0].message.content
+            st.session_state.messages.append({"role": "assistant", "content": initial_message})
             st.session_state.greeting_sent = True
+            st.session_state.conversation_phase = "opinion_measurement"
         
-        # Mostra i messaggi della chat
+        # Display all messages
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
         
-        # Input per la chat
-        if prompt := st.chat_input("Scrivi il tuo messaggio..."):
-            # Aggiungi il messaggio dell'utente
+        # Chat input
+        if prompt := st.chat_input("Write your message..."):
+            # Add user message
             st.session_state.messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
             
-            # Genera risposta da OpenAI
+            # Generate response from OpenAI
             stream = openai_client.chat.completions.create(
                 model="gpt-3.5-turbo",
+                system=system_prompt,
                 messages=[
                     {"role": m["role"], "content": m["content"]}
                     for m in st.session_state.messages
@@ -107,23 +149,23 @@ try:
                 stream=True,
             )
             
-            # Stream della risposta
+            # Stream response
             with st.chat_message("assistant"):
                 response = st.write_stream(stream)
             
             st.session_state.messages.append({"role": "assistant", "content": response})
             
-            # Salva automaticamente ogni scambio
+            # Auto-save every exchange
             conversation_json = json.dumps(st.session_state.messages, ensure_ascii=False, indent=2)
             sheet.append_row([
-                user_info["nome"],
-                user_info["cognome"],
-                user_info["luogo_nascita"],
+                user_info["name"],
+                user_info["surname"],
+                user_info["birthplace"],
                 conversation_json,
                 datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             ])
 
 except KeyError as e:
-    st.error(f"Errore: Configura nel secrets.toml: 'gcp_service_account', 'google_sheet_url' e 'openai_api_key'")
+    st.error(f"Error: Configure in secrets.toml: 'gcp_service_account', 'google_sheet_url', and 'openai_api_key'")
 except Exception as e:
-    st.error(f"Errore: {e}")
+    st.error(f"Error: {e}")
