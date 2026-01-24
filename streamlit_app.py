@@ -139,13 +139,14 @@ Remember: You are currently at the INITIAL GREETING phase. Start by saying "Hell
                 st.markdown(prompt)
             
             # Generate response from OpenAI
+            messages_with_system = [{"role": "system", "content": system_prompt}] + [
+                {"role": m["role"], "content": m["content"]}
+                for m in st.session_state.messages
+            ]
+            
             stream = openai_client.chat.completions.create(
                 model="gpt-3.5-turbo",
-                system=system_prompt,
-                messages=[
-                    {"role": m["role"], "content": m["content"]}
-                    for m in st.session_state.messages
-                ],
+                messages=messages_with_system,
                 stream=True,
             )
             
