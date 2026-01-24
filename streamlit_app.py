@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from openai import OpenAI
 from datetime import datetime
+import os
+import json
 
 # Show title and description.
 st.title("💬 Chatbot")
@@ -17,6 +19,21 @@ openai_api_key = st.text_input("OpenAI API Key", type="password")
 if not openai_api_key:
     st.info("Please add your OpenAI API key to continue.", icon="🗝️")
 else:
+    # Percorso del file JSON per salvare i dati
+    DATA_FILE = "users_data.json"
+    
+    # Funzione per caricare i dati
+    def load_users_data():
+        if os.path.exists(DATA_FILE):
+            with open(DATA_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        return []
+    
+    # Funzione per salvare i dati
+    def save_users_data(users_list):
+        with open(DATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(users_list, f, ensure_ascii=False, indent=2)
+    
     # Inizializza session state per i dati utente
     if "user_data_collected" not in st.session_state:
         st.session_state.user_data_collected = False
@@ -40,9 +57,15 @@ else:
                     st.session_state.user_info = {
                         "nome": nome,
                         "cognome": cognome,
-                        "età": eta,
+                        "età": int(eta),
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }
+                    
+                    # Salva i dati nel file JSON
+                    users_list = load_users_data()
+                    users_list.append(st.session_state.user_info)
+                    save_users_data(users_list)
+                    
                     st.session_state.user_data_collected = True
                     st.rerun()
                 else:
@@ -86,28 +109,29 @@ else:
                 response = st.write_stream(stream)
             st.session_state.messages.append({"role": "assistant", "content": response})
         
-        # Sezione per salvare i dati in DataFrame
+        # Sezione per visualizzare e gestire i dati
         st.divider()
+        
+        with st.expander("📊 Visualizza tutti gli utenti salvati"):
+            users_list = load_users_data()
+            if users_list:
+                df = pd.DataFrame(users_list)
+                st.dataframe(df, use_container_width=True)
+                st.info(f"Total utenti salvati: {len(users_list)}")
+            else:
+                st.warning("Nessun utente salvato ancora")
+        
         col1, col2 = st.columns(2)
         
         with col1:
-            # Crea DataFrame dai dati dell'utente
-            df = pd.DataFrame([st.session_state.user_info])
-            
-            # Converti in CSV
-            csv = df.to_csv(index=False, encoding='utf-8')
-            
-            # Download button
-            st.download_button(
-                label="💾 Scarica dati in CSV",
-                data=csv,
-                file_name=f"utenti_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv"
-            )
-            st.dataframe(df, use_container_width=True)
-        
-        with col2:
             if st.button("🔄 Logout"):
                 st.session_state.user_data_collected = False
                 st.session_state.messages = []
                 st.rerun()
+        
+        with col2:
+            if st.button("🗑️ Cancella tutti i dati"):
+                if os.path.exists(DATA_FILE):
+                    os.remove(DATA_FILE)
+                    st.success("✅ Tutti i dati sono stati cancellati!")
+                    st.rerun()
