@@ -5,7 +5,204 @@ from datetime import datetime
 from openai import OpenAI
 import json
 
-st.title("📋 Questionnaire + Chat")
+# Page configuration
+st.set_page_config(
+    page_title="Everyday Norm Experiment",
+    page_icon="🔬",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+# Custom CSS for elegant design
+st.markdown("""
+<style>
+    * {
+        font-family: 'Segoe UI', Trebuchet MS, sans-serif;
+    }
+    
+    html, body, [data-testid="stAppViewContainer"] {
+        background: linear-gradient(135deg, #f5f7fa 0%, #f8f9fb 100%);
+    }
+    
+    [data-testid="stMainBlockContainer"] {
+        padding: 2rem 3rem;
+    }
+    
+    .header-container {
+        display: flex;
+        align-items: center;
+        gap: 2rem;
+        margin-bottom: 3rem;
+        padding-bottom: 2rem;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .cnr-logo {
+        font-size: 2.5rem;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        color: #003d82;
+    }
+    
+    .cnr-tagline {
+        color: #666;
+        font-size: 0.95rem;
+        margin-top: 0.5rem;
+    }
+    
+    .title-section h1 {
+        font-size: 2rem;
+        font-weight: 600;
+        color: #1a1a1a;
+        margin: 0;
+        letter-spacing: -0.3px;
+    }
+    
+    .title-section p {
+        color: #666;
+        font-size: 1rem;
+        margin-top: 0.5rem;
+    }
+    
+    [data-testid="stForm"] {
+        background: white;
+        padding: 2.5rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        border: 1px solid #e5e7eb;
+    }
+    
+    [data-testid="stForm"] label {
+        font-weight: 500;
+        color: #333;
+        font-size: 0.95rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    [data-testid="stTextInput"] input {
+        border: 1.5px solid #e5e7eb !important;
+        border-radius: 8px !important;
+        padding: 0.75rem 1rem !important;
+        font-size: 0.95rem !important;
+        transition: all 0.3s ease;
+    }
+    
+    [data-testid="stTextInput"] input:focus {
+        border-color: #003d82 !important;
+        box-shadow: 0 0 0 3px rgba(0, 61, 130, 0.1) !important;
+    }
+    
+    button[kind="primary"] {
+        background: linear-gradient(135deg, #003d82 0%, #004a9e 100%);
+        color: white !important;
+        border: none !important;
+        padding: 0.75rem 2rem !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        font-size: 0.95rem !important;
+        transition: all 0.3s ease;
+        margin-top: 1.5rem;
+    }
+    
+    button[kind="primary"]:hover {
+        box-shadow: 0 4px 12px rgba(0, 61, 130, 0.3);
+        transform: translateY(-1px);
+    }
+    
+    .success-badge {
+        background: #f0fdf4;
+        color: #166534;
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        border-left: 4px solid #22c55e;
+        margin-bottom: 2rem;
+        font-weight: 500;
+    }
+    
+    [data-testid="chatAvatarIcon-assistant"], [data-testid="chatAvatarIcon-user"] {
+        display: none !important;
+    }
+    
+    [role="presentation"] [data-testid="stChatMessage"] {
+        background: transparent !important;
+        padding: 1rem 0 !important;
+    }
+    
+    [data-testid="stChatMessageContent"] {
+        background: white;
+        padding: 1.25rem 1.5rem;
+        border-radius: 10px;
+        border: 1px solid #e5e7eb;
+        line-height: 1.6;
+        color: #333;
+        font-size: 0.95rem;
+    }
+    
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageContent"] p) > div:first-child {
+        margin-right: auto;
+        max-width: 85%;
+    }
+    
+    [data-testid="stChatMessage"]:last-child [data-testid="stChatMessageContent"] {
+        background: linear-gradient(135deg, #f3f4f6 0%, #ffffff 100%);
+    }
+    
+    [data-testid="stChatInputTextArea"] textarea {
+        border: 1.5px solid #e5e7eb !important;
+        border-radius: 8px !important;
+        padding: 1rem !important;
+        font-size: 0.95rem !important;
+    }
+    
+    [data-testid="stChatInputTextArea"] textarea:focus {
+        border-color: #003d82 !important;
+        box-shadow: 0 0 0 3px rgba(0, 61, 130, 0.1) !important;
+    }
+    
+    .chat-container {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+    
+    hr {
+        border: none;
+        border-top: 1px solid #e5e7eb;
+        margin: 2rem 0;
+    }
+    
+    .error {
+        background: #fef2f2;
+        color: #991b1b;
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        border-left: 4px solid #ef4444;
+        font-size: 0.95rem;
+    }
+    
+    .info-text {
+        color: #666;
+        font-size: 0.9rem;
+        margin-top: 1rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Header
+st.markdown("""
+<div class="header-container">
+    <div>
+        <div class="cnr-logo">CNR</div>
+        <div class="cnr-tagline">Consiglio Nazionale delle Ricerche</div>
+    </div>
+    <div class="title-section">
+        <h1>Everyday Norm Experiment</h1>
+        <p>A conversational study on social perceptions</p>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 try:
     # Load credentials and URL from secrets.toml
@@ -38,14 +235,16 @@ try:
     
     # PHASE 1: Questionnaire
     if not st.session_state.user_data_collected:
-        st.subheader("📋 Complete the Questionnaire")
+        st.markdown("<h2 style='color: #1a1a1a; font-weight: 600; margin-bottom: 2rem;'>Participant Information</h2>", unsafe_allow_html=True)
         
         with st.form("questionnaire_form"):
             name = st.text_input("First Name", placeholder="Enter your first name")
             surname = st.text_input("Last Name", placeholder="Enter your last name")
             birthplace = st.text_input("Place of Birth", placeholder="Enter your place of birth")
             
-            submitted = st.form_submit_button("Start Chat")
+            st.markdown("<p class='info-text'>Your information will be used only for research purposes.</p>", unsafe_allow_html=True)
+            
+            submitted = st.form_submit_button("Start Conversation", use_container_width=True)
             
             if submitted:
                 if name and surname and birthplace:
@@ -58,13 +257,18 @@ try:
                     st.session_state.user_data_collected = True
                     st.rerun()
                 else:
-                    st.error("Please fill in all fields!")
+                    st.markdown("<div class='error'>Please fill in all fields to continue.</div>", unsafe_allow_html=True)
     
     # PHASE 2: Chat with OpenAI
     else:
         user_info = st.session_state.user_info
-        st.success(f"✅ Welcome, {user_info['name']} {user_info['surname']}!")
-        st.divider()
+        st.markdown(f"""
+        <div class="success-badge">
+            Welcome back, <strong>{user_info['name']}</strong>. Let's continue.
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("<hr>", unsafe_allow_html=True)
         
         # Create OpenAI client
         openai_client = OpenAI(api_key=openai_api_key)
@@ -125,13 +329,16 @@ Remember: You are currently at the INITIAL GREETING phase. Start by saying "Hell
             st.session_state.greeting_sent = True
             st.session_state.conversation_phase = "opinion_measurement"
         
-        # Display all messages
+        # Display all messages in elegant chat container
+        st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
+        st.markdown("</div>", unsafe_allow_html=True)
         
         # Chat input
-        if prompt := st.chat_input("Write your message..."):
+        st.markdown("<br>", unsafe_allow_html=True)
+        if prompt := st.chat_input("Your response..."):
             # Add user message
             st.session_state.messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
@@ -166,6 +373,17 @@ Remember: You are currently at the INITIAL GREETING phase. Start by saying "Hell
             ])
 
 except KeyError as e:
-    st.error(f"Error: Configure in secrets.toml: 'gcp_service_account', 'google_sheet_url', and 'openai_api_key'")
+    st.markdown("""
+    <div class="error">
+        <strong>Configuration Error:</strong> Please configure the following in secrets.toml:
+        <br>• gcp_service_account
+        <br>• google_sheet_url
+        <br>• openai_api_key
+    </div>
+    """, unsafe_allow_html=True)
 except Exception as e:
-    st.error(f"Error: {e}")
+    st.markdown(f"""
+    <div class="error">
+        <strong>Error:</strong> {str(e)}
+    </div>
+    """, unsafe_allow_html=True)
