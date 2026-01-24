@@ -198,7 +198,7 @@ st.markdown("""
         <div class="cnr-tagline"></div>
     </div>
     <div class="title-section">
-        <h1>Everyday </h1>
+        <h1>Beta Test Web App </h1>
         <p></p>
     </div>
 </div>
