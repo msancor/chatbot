@@ -1,138 +1,82 @@
 import streamlit as st
 import pandas as pd
-from openai import OpenAI
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
-import json
 
 # Configura le credenziali di Google Sheets
 def get_gsheet_client():
-    # Carica le credenziali da st.secrets
-    creds_dict = st.secrets["gcp_service_account"]
-    creds = Credentials.from_service_account_info(creds_dict)
-    return gspread.authorize(creds)
+    try:
+        creds_dict = st.secrets["gcp_service_account"]
+        creds = Credentials.from_service_account_info(creds_dict)
+        return gspread.authorize(creds)
+    except Exception as e:
+        st.error(f"Errore nell'autenticazione: {e}")
+        return None
 
-# Funzioni per Google Sheets
-def load_users_data(sheet_url):
+# Carica i dati da Google Sheets
+def load_data(sheet_url):
     try:
         client = get_gsheet_client()
-        sheet = client.open_by_url(sheet_url).worksheet("users")
-        data = sheet.get_all_records()
-        return data
+        if client:
+            sheet = client.open_by_url(sheet_url).worksheet("nomi")
+            data = sheet.get_all_records()
+            return data
+        return []
     except Exception as e:
         st.error(f"Errore nel caricamento dati: {e}")
         return []
 
-def save_user_data(sheet_url, user_info):
+# Salva il nome su Google Sheets
+def save_name(sheet_url, nome, email):
     try:
         client = get_gsheet_client()
-        sheet = client.open_by_url(sheet_url).worksheet("users")
-        # Aggiungi una nuova riga
-        sheet.append_row([
-            user_info["nome"],
-            user_info["cognome"],
-            user_info["età"],
-            user_info["timestamp"]
-        ])
-        return True
+        if client:
+            sheet = client.open_by_url(sheet_url).worksheet("nomi")
+            sheet.append_row([
+                nome,
+                email,
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            ])
+            return True
     except Exception as e:
         st.error(f"Errore nel salvataggio: {e}")
         return False
 
-# Show title and description.
-st.title("💬 Chatbot")
-st.write(
-    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys)."
+# Titolo e descrizione
+st.title("📝 Salva il Tuo Nome")
+st.write("Inserisci il tuo nome e salvalo su Google Sheets")
+
+# Input per Google Sheets URL
+sheet_url = st.text_input(
+    "Google Sheets URL",
+    placeholder="https://docs.google.com/spreadsheets/d/..."
 )
 
-# Ask user for their OpenAI API key
-openai_api_key = st.text_input("OpenAI API Key", type="password")
-
-# Ask user for Google Sheets URL
-sheet_url = st.text_input("Google Sheets URL", placeholder="https://docs.google.com/spreadsheets/d/...")
-
-if not openai_api_key or not sheet_url:
-    st.info("Please add your OpenAI API key and Google Sheets URL to continue.", icon="🗝️")
+if not sheet_url:
+    st.info("Per favore, inserisci l'URL del Google Sheets per continuare.", icon="🗝️")
 else:
-    # Inizializza session state per i dati utente
-    if "user_data_collected" not in st.session_state:
-        st.session_state.user_data_collected = False
-    if "user_info" not in st.session_state:
-        st.session_state.user_info = {"nome": "", "cognome": "", "età": ""}
-    
-    # Se i dati non sono stati raccolti, mostra il form
-    if not st.session_state.user_data_collected:
-        st.subheader("📋 Benvenuto! Per iniziare, compilare il modulo:")
+    # Crea il form
+    with st.form("name_form"):
+        nome = st.text_input("Nome", placeholder="Inserisci il tuo nome")
+        email = st.text_input("Email", placeholder="Inserisci la tua email")
         
-        with st.form("user_info_form"):
-            nome = st.text_input("Nome", placeholder="Inserisci il tuo nome")
-            cognome = st.text_input("Cognome", placeholder="Inserisci il tuo cognome")
-            eta = st.number_input("Età", min_value=1, max_value=150, step=1, value=18)
-            
-            submitted = st.form_submit_button("Inizia a chattare")
-            
-            if submitted:
-                if nome and cognome:
-                    # Salva i dati in session state
-                    st.session_state.user_info = {
-                        "nome": nome,
-                        "cognome": cognome,
-                        "età": int(eta),
-                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    }
-                    
-                    # Salva i dati in Google Sheets
-                    if save_user_data(sheet_url, st.session_state.user_info):
-                        st.session_state.user_data_collected = True
-                        st.rerun()
-                    else:
-                        st.error("Errore nel salvataggio dei dati")
-                else:
-                    st.error("Per favore, inserisci nome e cognome!")
+        submitted = st.form_submit_button("Salva")
+        
+        if submitted:
+            if nome and email:
+                if save_name(sheet_url, nome, email):
+                    st.success(f"✅ Nome '{nome}' salvato con successo!")
+            else:
+                st.error("Per favore, compila tutti i campi!")
     
+    # Mostra i dati salvati
+    st.divider()
+    st.subheader("📊 Nomi salvati")
+    
+    data = load_data(sheet_url)
+    if data:
+        df = pd.DataFrame(data)
+        st.dataframe(df, use_container_width=True)
     else:
-        # Mostra i dati dell'utente
-        st.success(f"✅ Benvenuto, {st.session_state.user_info['nome']} {st.session_state.user_info['cognome']}!")
-        
-        # Crea il client OpenAI
-        client = OpenAI(api_key=openai_api_key)
-        
-        # Inizializza session state per i messaggi
-        if "messages" not in st.session_state:
-            st.session_state.messages = []
-        
-        # Mostra i messaggi della chat
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
-        
-        # Input per la chat
-        if prompt := st.chat_input("Dimmi qualcosa..."):
-            # Aggiungi il messaggio dell'utente
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            with st.chat_message("user"):
-                st.markdown(prompt)
-            
-            # Genera risposta
-            stream = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": m["role"], "content": m["content"]}
-                    for m in st.session_state.messages
-                ],
-                stream=True,
-            )
-            
-            # Stream della risposta
-            with st.chat_message("assistant"):
-                response = st.write_stream(stream)
-            st.session_state.messages.append({"role": "assistant", "content": response})
-        
-        # Button per logout
-        st.divider()
-        if st.button("🔄 Logout"):
-            st.session_state.user_data_collected = False
-            st.session_state.messages = []
-            st.rerun()
+        st.info("Nessun nome salvato ancora.")
