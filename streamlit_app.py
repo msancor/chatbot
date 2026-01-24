@@ -30,6 +30,8 @@ try:
         st.session_state.user_info = {}
     if "messages" not in st.session_state:
         st.session_state.messages = []
+    if "greeting_sent" not in st.session_state:
+        st.session_state.greeting_sent = False
     
     # FASE 1: Questionario
     if not st.session_state.user_data_collected:
@@ -64,6 +66,24 @@ try:
         
         # Crea il client OpenAI
         openai_client = OpenAI(api_key=openai_api_key)
+        
+        # Genera saluto automatico al primo accesso
+        if not st.session_state.greeting_sent:
+            greeting_prompt = f"Saluta warmly {user_info['nome']} che viene da {user_info['luogo_nascita']}. Sii cordiale e accogliente, non più di 2 frasi."
+            
+            stream = openai_client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "user", "content": greeting_prompt}
+                ],
+                stream=True,
+            )
+            
+            with st.chat_message("assistant"):
+                greeting_response = st.write_stream(stream)
+            
+            st.session_state.messages.append({"role": "assistant", "content": greeting_response})
+            st.session_state.greeting_sent = True
         
         # Mostra i messaggi della chat
         for message in st.session_state.messages:
