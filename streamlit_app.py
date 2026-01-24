@@ -1,12 +1,4 @@
-# Mostra cronologia salvate
-        st.divider()
-        st.subheader("📊 Chat salvate")
-        data = sheet.get_all_records()
-        if data:
-            df = pd.DataFrame(data)
-            st.dataframe(df, use_container_width=True)
-        else:
-            st.info("Nessuna chat salvata ancora")import streamlit as st
+import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
@@ -103,7 +95,8 @@ try:
         
         # Button per salvare e logout
         st.divider()
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
+        
         with col1:
             if st.button("💾 Salva chat"):
                 # Salva l'intera conversazione come JSON in una cella
@@ -122,6 +115,16 @@ try:
                 st.session_state.user_data_collected = False
                 st.session_state.messages = []
                 st.rerun()
+        
+        with col3:
+            if st.button("📊 Mostra salvate"):
+                st.subheader("Chat salvate")
+                data = sheet.get_all_records()
+                if data:
+                    df = pd.DataFrame(data)
+                    st.dataframe(df, use_container_width=True)
+                else:
+                    st.info("Nessuna chat salvata ancora")
 
 except KeyError as e:
     st.error(f"Errore: Configura nel secrets.toml: 'gcp_service_account', 'google_sheet_url' e 'openai_api_key'")
