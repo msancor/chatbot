@@ -26,7 +26,7 @@ else:
         client = gspread.authorize(creds)
         
         # Apri il foglio
-        sheet = client.open_by_url(sheet_url).worksheet("Sheet1")
+        sheet = client.open_by_url(sheet_url).worksheet("Foglio1")
         
         # Form per inserire il nome
         with st.form("name_form"):
