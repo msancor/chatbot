@@ -1,9 +1,18 @@
-import streamlit as st
+# Mostra cronologia salvate
+        st.divider()
+        st.subheader("📊 Chat salvate")
+        data = sheet.get_all_records()
+        if data:
+            df = pd.DataFrame(data)
+            st.dataframe(df, use_container_width=True)
+        else:
+            st.info("Nessuna chat salvata ancora")import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
 from datetime import datetime
 from openai import OpenAI
+import json
 
 st.title("📋 Questionario + Chat")
 
@@ -91,35 +100,28 @@ try:
                 response = st.write_stream(stream)
             
             st.session_state.messages.append({"role": "assistant", "content": response})
-            
-            # Salva domanda e risposta su Google Sheets
-            sheet.append_row([
-                user_info["nome"],
-                user_info["cognome"],
-                user_info["luogo_nascita"],
-                prompt,
-                response,
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            ])
         
-        # Button per logout
+        # Button per salvare e logout
         st.divider()
         col1, col2 = st.columns(2)
         with col1:
+            if st.button("💾 Salva chat"):
+                # Salva l'intera conversazione come JSON in una cella
+                conversation_json = json.dumps(st.session_state.messages, ensure_ascii=False, indent=2)
+                sheet.append_row([
+                    user_info["nome"],
+                    user_info["cognome"],
+                    user_info["luogo_nascita"],
+                    conversation_json,
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                ])
+                st.success("✅ Chat salvata!")
+        
+        with col2:
             if st.button("🔄 Logout"):
                 st.session_state.user_data_collected = False
                 st.session_state.messages = []
                 st.rerun()
-        
-        with col2:
-            if st.button("📊 Mostra cronologia"):
-                st.subheader("Cronologia chat")
-                data = sheet.get_all_records()
-                if data:
-                    df = pd.DataFrame(data)
-                    st.dataframe(df, use_container_width=True)
-                else:
-                    st.info("Nessuna chat ancora")
 
 except KeyError as e:
     st.error(f"Errore: Configura nel secrets.toml: 'gcp_service_account', 'google_sheet_url' e 'openai_api_key'")
