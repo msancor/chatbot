@@ -1,5 +1,7 @@
 import streamlit as st
+import pandas as pd
 from openai import OpenAI
+from datetime import datetime
 
 # Show title and description.
 st.title("💬 Chatbot")
@@ -9,48 +11,98 @@ st.write(
     "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
 )
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
+# Ask user for their OpenAI API key
 openai_api_key = st.text_input("OpenAI API Key", type="password")
+
 if not openai_api_key:
     st.info("Please add your OpenAI API key to continue.", icon="🗝️")
 else:
-
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
-
-    # Create a session state variable to store the chat messages. This ensures that the
-    # messages persist across reruns.
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
-    # Display the existing chat messages via `st.chat_message`.
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
-
-        # Store and display the current prompt.
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
-        # Generate a response using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
-            stream=True,
-        )
-
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
-        with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+    # Inizializza session state per i dati utente
+    if "user_data_collected" not in st.session_state:
+        st.session_state.user_data_collected = False
+    if "user_info" not in st.session_state:
+        st.session_state.user_info = {"nome": "", "cognome": "", "età": ""}
+    
+    # Se i dati non sono stati raccolti, mostra il form
+    if not st.session_state.user_data_collected:
+        st.subheader("📋 Benvenuto! Per iniziare, compilare il modulo:")
+        
+        with st.form("user_info_form"):
+            nome = st.text_input("Nome", placeholder="Inserisci il tuo nome")
+            cognome = st.text_input("Cognome", placeholder="Inserisci il tuo cognome")
+            eta = st.number_input("Età", min_value=1, max_value=150, step=1, value=18)
+            
+            submitted = st.form_submit_button("Inizia a chattare")
+            
+            if submitted:
+                if nome and cognome:
+                    # Salva i dati in session state
+                    st.session_state.user_info = {
+                        "nome": nome,
+                        "cognome": cognome,
+                        "età": eta,
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    st.session_state.user_data_collected = True
+                    st.rerun()
+                else:
+                    st.error("Per favore, inserisci nome e cognome!")
+    
+    else:
+        # Mostra i dati dell'utente
+        st.success(f"✅ Benvenuto, {st.session_state.user_info['nome']} {st.session_state.user_info['cognome']}!")
+        
+        # Crea il client OpenAI
+        client = OpenAI(api_key=openai_api_key)
+        
+        # Inizializza session state per i messaggi
+        if "messages" not in st.session_state:
+            st.session_state.messages = []
+        
+        # Mostra i messaggi della chat
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+        
+        # Input per la chat
+        if prompt := st.chat_input("Dimmi qualcosa..."):
+            # Aggiungi il messaggio dell'utente
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
+            
+            # Genera risposta
+            stream = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": m["role"], "content": m["content"]}
+                    for m in st.session_state.messages
+                ],
+                stream=True,
+            )
+            
+            # Stream della risposta
+            with st.chat_message("assistant"):
+                response = st.write_stream(stream)
+            st.session_state.messages.append({"role": "assistant", "content": response})
+        
+        # Sezione per salvare i dati in DataFrame
+        st.divider()
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("💾 Salva dati in CSV"):
+                # Crea DataFrame dai dati dell'utente
+                df = pd.DataFrame([st.session_state.user_info])
+                
+                # Salva in CSV
+                filename = f"utenti_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                df.to_csv(filename, index=False, encoding='utf-8')
+                st.success(f"✅ Dati salvati in {filename}")
+                st.dataframe(df, use_container_width=True)
+        
+        with col2:
+            if st.button("🔄 Logout"):
+                st.session_state.user_data_collected = False
+                st.session_state.messages = []
+                st.rerun()
