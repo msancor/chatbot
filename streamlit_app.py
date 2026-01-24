@@ -329,8 +329,6 @@ Remember: You are currently at the INITIAL GREETING phase. Start by saying "Hell
             st.session_state.greeting_sent = True
             st.session_state.conversation_phase = "opinion_measurement"
         
-        # Display all messages in elegant chat container
-        st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
