@@ -6,7 +6,6 @@ from datetime import datetime
 from openai import OpenAI
 import time
 import threading
-from collections import defaultdict
 
 # Page configuration
 st.set_page_config(
@@ -161,29 +160,29 @@ def init_google_sheets():
         return None, False
 
 
-def save_to_google_sheets(sheet, user_info, prompt_key, prompt_data, argumentation, word_tracking, final_chat_messages):
+def save_to_google_sheets(sheet, user_info, prompt_key, prompt_data, argumentation, content_tracking, final_chat_messages):
     """
     Salva i dati su Google Sheets alla fine della sessione.
+    
+    Args:
+        content_tracking: dict con {timestamp: contenuto_completo, ...}
     """
     try:
         final_chat_json = json.dumps(final_chat_messages or [], ensure_ascii=False, indent=2)
         
-        # Formatta il word tracking
-        word_tracking_formatted = ""
-        if word_tracking:
-            sorted_tracking = sorted(word_tracking.items())
-            word_tracking_formatted = json.dumps(
-                {f"second_{int(ts)}": count for ts, count in sorted_tracking},
-                ensure_ascii=False,
-                indent=2
-            )
+        # Formatta il content tracking
+        content_tracking_formatted = json.dumps(
+            content_tracking,
+            ensure_ascii=False,
+            indent=2
+        )
         
         sheet.append_row([
             user_info["prolific_id"],
             prompt_key,
             prompt_data["title"],
             argumentation,
-            word_tracking_formatted,
+            content_tracking_formatted,  # Tutto il tracking del contenuto
             final_chat_json,
             datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ])
@@ -194,10 +193,10 @@ def save_to_google_sheets(sheet, user_info, prompt_key, prompt_data, argumentati
 
 
 # ============================================================================
-# THREAD TRACKER - Traccia in background senza mostrare nulla
+# THREAD TRACKER - Traccia il contenuto completo ogni secondo
 # ============================================================================
 
-class BackgroundTracker(threading.Thread):
+class ContentTracker(threading.Thread):
     def __init__(self, session_state):
         super().__init__(daemon=True)
         self.session_state = session_state
@@ -205,24 +204,24 @@ class BackgroundTracker(threading.Thread):
         self.last_saved_second = None
     
     def run(self):
-        """Loop in background che traccia ogni secondo"""
+        """Loop in background che traccia il contenuto completo ogni secondo"""
         self.is_running = True
         while self.is_running:
             try:
                 current_time = time.time()
                 current_second = int(current_time)
                 
-                # Se è un nuovo secondo, traccia
+                # Se è un nuovo secondo, traccia il contenuto completo
                 if current_second != self.last_saved_second:
                     content = self.session_state.get("argumentation_input", "")
-                    word_count = len(content.split()) if content.strip() else 0
                     
-                    # Salva nel tracking
-                    self.session_state.word_tracking[current_second] = word_count
+                    # Salva il contenuto COMPLETO per questo secondo
+                    self.session_state.content_tracking[current_second] = content
                     
-                    # Log silenzioso (solo nei log di Streamlit, non visibile all'utente)
+                    # Log silenzioso
                     readable_time = datetime.fromtimestamp(current_second).strftime("%H:%M:%S")
-                    print(f"[{readable_time}] Tracked: {word_count} words")
+                    word_count = len(content.split()) if content.strip() else 0
+                    print(f"[{readable_time}] Tracked content: {word_count} words | '{content[:50]}...'")
                     
                     self.last_saved_second = current_second
                 
@@ -242,8 +241,8 @@ if "final_argumentation" not in st.session_state:
     st.session_state.final_argumentation = None
 if "final_chat_messages" not in st.session_state:
     st.session_state.final_chat_messages = []
-if "word_tracking" not in st.session_state:
-    st.session_state.word_tracking = {}
+if "content_tracking" not in st.session_state:
+    st.session_state.content_tracking = {}  # {timestamp: contenuto_completo}
 if "user_info" not in st.session_state:
     st.session_state.user_info = {
         "prolific_id": "TEST_USER_001",
@@ -255,6 +254,8 @@ if "tracker" not in st.session_state:
     st.session_state.tracker = None
 if "selected_prompt_key" not in st.session_state:
     st.session_state.selected_prompt_key = "norm_test"
+if "app_start_time" not in st.session_state:
+    st.session_state.app_start_time = datetime.now()
 
 # Tentare la connessione a Google Sheets
 sheet, is_connected = init_google_sheets()
@@ -262,7 +263,7 @@ st.session_state.sheet_connected = is_connected
 
 # Avvia tracker in background se non è già avviato
 if st.session_state.tracker is None:
-    st.session_state.tracker = BackgroundTracker(st.session_state)
+    st.session_state.tracker = ContentTracker(st.session_state)
     st.session_state.tracker.start()
 
 # ============================================================================
@@ -317,11 +318,12 @@ with col_form:
             print("="*60)
             print(f"User: {st.session_state.user_info['prolific_id']}")
             print(f"Total words: {len(argumentation.split())}")
-            print(f"Seconds tracked: {len(st.session_state.word_tracking)}")
-            print(f"\nWord tracking by second:")
-            for second, word_count in sorted(st.session_state.word_tracking.items()):
-                readable_time = datetime.fromtimestamp(second).strftime("%H:%M:%S")
-                print(f"  [{readable_time}] {word_count} words")
+            print(f"Seconds tracked: {len(st.session_state.content_tracking)}")
+            print(f"\nContent tracking by second:")
+            for timestamp, content in sorted(st.session_state.content_tracking.items()):
+                readable_time = datetime.fromtimestamp(timestamp).strftime("%H:%M:%S")
+                word_count = len(content.split()) if content.strip() else 0
+                print(f"  [{readable_time}] {word_count} words | Content: '{content[:60]}...'")
             print("="*60 + "\n")
             
             # Try to save to database
@@ -337,7 +339,7 @@ with col_form:
                     st.session_state.selected_prompt_key,
                     mock_prompt_data,
                     argumentation,
-                    st.session_state.word_tracking,
+                    st.session_state.content_tracking,  # Passa il tracking del contenuto
                     st.session_state.final_chat_messages
                 )
                 
@@ -384,7 +386,7 @@ with col_assistant:
         
         # Generate response
         try:
-            # Mock response (without real API for testing)
+            # Mock response
             response_text = f"""This is a response to your question about professional conduct during interviews.
             
 Drinking during a job interview is generally considered inappropriate because it can affect your professional image, impair your judgment, and show a lack of respect for the interviewer and the opportunity."""
