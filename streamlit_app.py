@@ -417,7 +417,10 @@ with col_form:
             print(f"Total tracking samples: {total_samples}")
             print(f"Session duration: {duration:.2f} seconds")
             print(f"Average sampling rate: {avg_sampling_rate:.2f} samples/second")
-            print(f"Tracking interval: ~{1000/avg_sampling_rate:.0f}ms")
+            if avg_sampling_rate > 0:
+                print(f"Tracking interval: ~{1000/avg_sampling_rate:.0f}ms")
+            else:
+                print(f"Tracking interval: N/A (no samples)")
             print(f"\n📈 Tracking timeline (first 10 and last 10 samples):")
             
             # Mostra primi 10 samples
