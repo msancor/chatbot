@@ -93,21 +93,19 @@ st.markdown("""
         color: #666;
         margin-top: 1rem;
     }
+    
+    .timer-display {
+        background: #003d82;
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        text-align: center;
+        margin-bottom: 1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
-
-# ============================================================================
-# AUTO-REFRESH TIMER - Forza rerun ogni secondo
-# ============================================================================
-
-def init_auto_refresh():
-    """Inizializza il timer per l'auto-refresh"""
-    if "refresh_count" not in st.session_state:
-        st.session_state.refresh_count = 0
-    if "start_time" not in st.session_state:
-        st.session_state.start_time = time.time()
-    if "last_refresh" not in st.session_state:
-        st.session_state.last_refresh = time.time()
 
 # ============================================================================
 # CONFIGURAZIONE GOOGLE SHEETS
@@ -173,7 +171,13 @@ def save_to_google_sheets(sheet, user_info, prompt_key, prompt_data, argumentati
 # INITIALIZE SESSION STATE
 # ============================================================================
 
-init_auto_refresh()
+# Inizializza il timer PRIMA di tutto
+if "start_time" not in st.session_state:
+    st.session_state.start_time = time.time()
+    print(f"⏱️ Timer started at {datetime.now().strftime('%H:%M:%S')}")
+
+if "last_save_time" not in st.session_state:
+    st.session_state.last_save_time = time.time()
 
 if "final_argumentation" not in st.session_state:
     st.session_state.final_argumentation = None
@@ -192,36 +196,44 @@ if "selected_prompt_key" not in st.session_state:
     st.session_state.selected_prompt_key = "norm_test"
 if "is_submitted" not in st.session_state:
     st.session_state.is_submitted = False
+if "current_text" not in st.session_state:
+    st.session_state.current_text = ""
 
 # Tentare la connessione a Google Sheets
 sheet, is_connected = init_google_sheets()
 st.session_state.sheet_connected = is_connected
 
 # ============================================================================
-# TRACKING LOGIC - Salva ad ogni rerun
+# TRACKING LOGIC - AUTOMATIC SAVE OGNI SECONDO
 # ============================================================================
 
-def track_current_text(text_content):
-    """Traccia il testo corrente con timestamp"""
-    if not st.session_state.is_submitted:
-        current_time = time.time()
+def auto_save_text():
+    """Salva automaticamente il testo corrente ogni secondo"""
+    current_time = time.time()
+    elapsed_since_last_save = current_time - st.session_state.last_save_time
+    
+    # Salva ogni secondo
+    if elapsed_since_last_save >= 1.0 and not st.session_state.is_submitted:
         current_second = int(current_time)
+        text_content = st.session_state.current_text
         
         word_count = len(text_content.split()) if text_content.strip() else 0
         char_count = len(text_content)
         
-        # Salva solo se è cambiato qualcosa o è un nuovo secondo
-        if current_second not in st.session_state.text_tracking or \
-           st.session_state.text_tracking.get(current_second, {}).get("text", "") != text_content:
-            
-            st.session_state.text_tracking[current_second] = {
-                "text": text_content,
-                "word_count": word_count,
-                "char_count": char_count
-            }
-            
-            readable_time = datetime.fromtimestamp(current_second).strftime("%H:%M:%S")
-            print(f"[{readable_time}] Tracked: {word_count} words, {char_count} chars")
+        # Salva snapshot
+        st.session_state.text_tracking[current_second] = {
+            "text": text_content,
+            "word_count": word_count,
+            "char_count": char_count
+        }
+        
+        st.session_state.last_save_time = current_time
+        
+        readable_time = datetime.fromtimestamp(current_second).strftime("%H:%M:%S")
+        print(f"💾 [{readable_time}] Auto-saved: {word_count} words, {char_count} chars")
+        
+        return True
+    return False
 
 # ============================================================================
 # UI
@@ -246,21 +258,31 @@ st.markdown("""
 col_form, col_debug = st.columns([2, 1])
 
 with col_form:
+    # Timer display
+    elapsed_time = int(time.time() - st.session_state.start_time)
+    minutes = elapsed_time // 60
+    seconds = elapsed_time % 60
+    
+    st.markdown(f"""
+    <div class="timer-display">
+        ⏱️ Time Elapsed: {minutes:02d}:{seconds:02d}
+    </div>
+    """, unsafe_allow_html=True)
+    
     st.markdown("### Your Response")
     
     # Text area for argumentation
     argumentation = st.text_area(
         "Your argumentation:",
-        value=st.session_state.get("current_text", ""),
+        value=st.session_state.current_text,
         placeholder="Type your explanation here...",
         height=300,
         label_visibility="collapsed",
         key="argumentation_input"
     )
     
-    # Traccia il testo corrente
+    # Aggiorna il testo corrente nel session state
     st.session_state.current_text = argumentation
-    track_current_text(argumentation)
     
     # Submit button
     if st.button("Submit and Complete", type="primary", use_container_width=True):
@@ -268,13 +290,22 @@ with col_form:
             st.session_state.final_argumentation = argumentation
             st.session_state.is_submitted = True
             
+            # Salva l'ultimo snapshot prima del submit
+            current_second = int(time.time())
+            st.session_state.text_tracking[current_second] = {
+                "text": argumentation,
+                "word_count": len(argumentation.split()),
+                "char_count": len(argumentation)
+            }
+            
             # Print final summary
             print("\n" + "="*60)
             print("📊 FINAL SUBMISSION:")
             print("="*60)
             print(f"User: {st.session_state.user_info['prolific_id']}")
             print(f"Total words: {len(argumentation.split())}")
-            print(f"Seconds tracked: {len(st.session_state.text_tracking)}")
+            print(f"Total time: {elapsed_time}s")
+            print(f"Snapshots saved: {len(st.session_state.text_tracking)}")
             print("="*60 + "\n")
             
             # Save to Google Sheets
@@ -317,40 +348,36 @@ with col_debug:
     
     current_time = time.time()
     elapsed = current_time - st.session_state.start_time
+    time_since_save = current_time - st.session_state.last_save_time
     
     st.markdown(f"""
     <div class="debug-info">
         <strong>⏱️ Tracking Status</strong><br>
-        Refresh count: {st.session_state.refresh_count}<br>
-        Elapsed time: {int(elapsed)}s<br>
-        Snapshots: {len(st.session_state.text_tracking)}<br>
+        Total time: {int(elapsed)}s<br>
+        Since last save: {time_since_save:.1f}s<br>
+        Total snapshots: {len(st.session_state.text_tracking)}<br>
         Current words: {len(argumentation.split())}<br>
-        Current chars: {len(argumentation)}
+        Current chars: {len(argumentation)}<br>
+        Status: {'✅ Submitted' if st.session_state.is_submitted else '🔄 Active'}
     </div>
     """, unsafe_allow_html=True)
     
-    # Mostra ultimi 5 snapshot
+    # Mostra ultimi 10 snapshot
     if st.session_state.text_tracking:
-        st.markdown("**Last 5 snapshots:**")
-        recent = sorted(st.session_state.text_tracking.items())[-5:]
+        st.markdown("**Last 10 snapshots:**")
+        recent = sorted(st.session_state.text_tracking.items())[-10:]
         for timestamp, data in recent:
             readable_time = datetime.fromtimestamp(timestamp).strftime("%H:%M:%S")
-            st.markdown(f"`{readable_time}`: {data['word_count']} words")
+            st.markdown(f"`{readable_time}`: {data['word_count']} words, {data['char_count']} chars")
 
 # ============================================================================
-# AUTO-REFRESH MECHANISM - Forza rerun ogni secondo
+# AUTO-SAVE MECHANISM - Esegui il salvataggio automatico
 # ============================================================================
 
 if not st.session_state.is_submitted:
-    # Incrementa il counter
-    st.session_state.refresh_count += 1
-    st.session_state.last_refresh = time.time()
+    # Prova a salvare (se è passato almeno 1 secondo)
+    was_saved = auto_save_text()
     
-    # Auto-refresh con JavaScript
-    st.markdown("""
-    <script>
-        setTimeout(function() {
-            window.parent.location.reload();
-        }, 1000);
-    </script>
-    """, unsafe_allow_html=True)
+    # Forza il rerun dopo 1 secondo usando st.rerun() con timer
+    time.sleep(0.1)  # Piccolo delay per evitare loop troppo veloci
+    st.rerun()
