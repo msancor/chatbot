@@ -501,53 +501,123 @@ try:
             st.session_state.greeting_sent = True
             st.session_state.conversation_phase = "opinion_measurement"
         
-        # Display messages with timestamps
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
-                st.markdown(f"<div class='timestamp'>{message.get('timestamp', 'N/A')}</div>", unsafe_allow_html=True)
+        # Create layout: main content on left, AI Assistant chat on right
+        col_main, col_assistant = st.columns([2, 1])
         
-        # Chat input
-        st.markdown("<br>", unsafe_allow_html=True)
-        if prompt := st.chat_input("Your response..."):
-            # Add user message with timestamp
-            st.session_state.messages.append({
-                "role": "user",
-                "content": prompt,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            })
-            with st.chat_message("user"):
-                st.markdown(prompt)
-                st.markdown(f"<div class='timestamp'>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>", unsafe_allow_html=True)
+        with col_main:
+            st.markdown("<h3>Conversation</h3>", unsafe_allow_html=True)
+            # Display messages with timestamps
+            for message in st.session_state.messages:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
+                    st.markdown(f"<div class='timestamp'>{message.get('timestamp', 'N/A')}</div>", unsafe_allow_html=True)
             
-            # Generate response from OpenAI
-            messages_for_api = [{"role": "system", "content": system_prompt}] + [
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ]
+            # Chat input
+            st.markdown("<br>", unsafe_allow_html=True)
+            if prompt := st.chat_input("Your response..."):
+                # Add user message with timestamp
+                st.session_state.messages.append({
+                    "role": "user",
+                    "content": prompt,
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+                with st.chat_message("user"):
+                    st.markdown(prompt)
+                    st.markdown(f"<div class='timestamp'>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>", unsafe_allow_html=True)
+                
+                # Generate response from OpenAI
+                messages_for_api = [{"role": "system", "content": system_prompt}] + [
+                    {"role": m["role"], "content": m["content"]}
+                    for m in st.session_state.messages
+                ]
+                
+                stream = openai_client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=messages_for_api,
+                    stream=True,
+                )
+                
+                # Stream response
+                with st.chat_message("assistant"):
+                    response = st.write_stream(stream)
+
+                # Check if conversation should end (LLM responds with ABRACADABRA)
+                if "ABRACADABRA" in response:
+                    st.session_state.conversation_ended = True
+                    st.rerun()
+                
+                response_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                st.markdown(f"<div class='timestamp'>{response_timestamp}</div>", unsafe_allow_html=True)
+                
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": response,
+                    "timestamp": response_timestamp
+                })
+        
+        with col_assistant:
+            st.markdown("<h3>AI Assistant</h3>", unsafe_allow_html=True)
             
-            stream = openai_client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=messages_for_api,
-                stream=True,
-            )
+            # Create OpenAI client for assistant chat
+            assistant_system_prompt = "You are a helpful and supportive assistant. Provide brief, helpful responses to support the user during their conversation."
             
-            # Stream response
-            with st.chat_message("assistant"):
-                response = st.write_stream(stream)
+            # Generate initial greeting if not yet sent
+            if not st.session_state.final_chat_greeting_sent:
+                greeting_response = openai_client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": assistant_system_prompt},
+                        {"role": "user", "content": "Hi, I'm here if you need assistance."}
+                    ],
+                    stream=False,
+                )
+                
+                initial_message = greeting_response.choices[0].message.content
+                st.session_state.final_chat_messages.append({
+                    "role": "assistant",
+                    "content": initial_message,
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+                st.session_state.final_chat_greeting_sent = True
             
-            response_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            st.markdown(f"<div class='timestamp'>{response_timestamp}</div>", unsafe_allow_html=True)
+            # Display chat messages in a compact container
+            chat_container = st.container(border=True, height=400)
+            with chat_container:
+                for message in st.session_state.final_chat_messages:
+                    with st.chat_message(message["role"]):
+                        st.markdown(message["content"])
+                        st.markdown(f"<div class='timestamp'>{message.get('timestamp', 'N/A')}</div>", unsafe_allow_html=True)
             
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": response,
-                "timestamp": response_timestamp
-            })
-            
-            # Check if conversation should end (LLM responds with ABRACADABRA)
-            if "ABRACADABRA" in response:
-                st.session_state.conversation_ended = True
+            # Chat input
+            if assistant_prompt := st.chat_input("Ask something...", key="assistant_chat_input"):
+                # Add user message
+                st.session_state.final_chat_messages.append({
+                    "role": "user",
+                    "content": assistant_prompt,
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+                
+                # Generate response from OpenAI
+                messages_for_api = [{"role": "system", "content": assistant_system_prompt}] + [
+                    {"role": m["role"], "content": m["content"]}
+                    for m in st.session_state.final_chat_messages
+                ]
+                
+                response = openai_client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=messages_for_api,
+                    stream=False,
+                )
+                
+                response_text = response.choices[0].message.content
+                response_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                st.session_state.final_chat_messages.append({
+                    "role": "assistant",
+                    "content": response_text,
+                    "timestamp": response_timestamp
+                })
+                
                 st.rerun()
     
     # PHASE 4: Final Argumentation Form + Lateral Chat
