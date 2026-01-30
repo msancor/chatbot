@@ -1,4 +1,6 @@
 import streamlit as st
+import gspread
+from google.oauth2.service_account import Credentials
 import json
 from datetime import datetime
 from openai import OpenAI
@@ -126,6 +128,15 @@ st.markdown("""
         font-size: 0.95rem;
     }
     
+    .warning {
+        background: #fffbeb;
+        color: #92400e;
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        border-left: 4px solid #f59e0b;
+        font-size: 0.95rem;
+    }
+    
     .info-text {
         color: #666;
         font-size: 0.9rem;
@@ -151,36 +162,6 @@ st.markdown("""
         box-shadow: 0 0 0 3px rgba(0, 61, 130, 0.1) !important;
     }
     
-    .final-phase-container {
-        display: flex;
-        gap: 2rem;
-        margin-top: 2rem;
-    }
-    
-    .form-column {
-        flex: 1;
-        min-width: 300px;
-    }
-    
-    .chat-column {
-        flex: 1;
-        min-width: 300px;
-        background: white;
-        border-radius: 12px;
-        padding: 1.5rem;
-        border: 1px solid #e5e7eb;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-        max-height: 600px;
-        display: flex;
-        flex-direction: column;
-    }
-    
-    .chat-messages {
-        flex: 1;
-        overflow-y: auto;
-        margin-bottom: 1rem;
-    }
-    
     @media (max-width: 1200px) {
         .final-phase-container {
             flex-direction: column;
@@ -188,6 +169,112 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+# ============================================================================
+# FUNZIONI DI SALVATAGGIO
+# ============================================================================
+
+def save_to_google_sheets(sheet, user_info, prompt_key, prompt_data, messages, argumentation, word_tracking=None, final_chat_messages=None):
+    """
+    Salva i dati su Google Sheets.
+    
+    Args:
+        sheet: Sheet object di gspread
+        user_info (dict): Informazioni dell'utente
+        prompt_key (str): Chiave del prompt selezionato
+        prompt_data (dict): Dati del prompt
+        messages (list): Lista dei messaggi
+        argumentation (str): Testo dell'argomentazione finale
+        word_tracking (dict): Tracking delle parole per secondo
+        final_chat_messages (list): Messaggi della chat finale
+    
+    Returns:
+        bool: True se il salvataggio è riuscito, False altrimenti
+    """
+    try:
+        conversation_json = json.dumps(messages, ensure_ascii=False, indent=2)
+        final_chat_json = json.dumps(final_chat_messages or [], ensure_ascii=False, indent=2)
+        
+        # Formatta il word tracking in modo leggibile
+        word_tracking_formatted = ""
+        if word_tracking:
+            sorted_tracking = sorted(word_tracking.items())
+            word_tracking_formatted = json.dumps(
+                {f"second_{i}": count for i, count in sorted_tracking},
+                ensure_ascii=False,
+                indent=2
+            )
+        
+        sheet.append_row([
+            user_info["prolific_id"],
+            prompt_key,
+            prompt_data["title"],
+            conversation_json,
+            argumentation,
+            word_tracking_formatted,
+            final_chat_json,
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ])
+        return True
+    except Exception as e:
+        st.error(f"❌ Errore nel salvataggio su Google Sheets: {str(e)}")
+        return False
+
+
+def save_conversation_to_json(user_info, prompt_data, messages, filename=None):
+    """
+    Salva la conversazione in un file JSON.
+    """
+    try:
+        if filename is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"conversation_{user_info['prolific_id']}_{timestamp}.json"
+        
+        conversation_data = {
+            "metadata": {
+                "prolific_id": user_info['prolific_id'],
+                "prompt_title": prompt_data['title'],
+                "prompt_description": prompt_data['description'],
+                "start_date": user_info['start_date'],
+                "end_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "total_messages": len(messages)
+            },
+            "messages": messages
+        }
+        
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(conversation_data, f, ensure_ascii=False, indent=2)
+        
+        return filename
+    except Exception as e:
+        st.error(f"❌ Errore nel salvataggio della conversazione: {str(e)}")
+        return None
+
+
+# ============================================================================
+# CONFIGURAZIONE GOOGLE SHEETS
+# ============================================================================
+
+def init_google_sheets():
+    """Inizializza la connessione a Google Sheets"""
+    try:
+        creds_dict = st.secrets["gcp_service_account"]
+        sheet_url = st.secrets["google_sheet_url"]
+        
+        scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        client_sheets = gspread.authorize(creds)
+        
+        spreadsheet = client_sheets.open_by_url(sheet_url)
+        sheet = spreadsheet.sheet1
+        
+        return sheet, True
+    except KeyError:
+        return None, False
+    except Exception as e:
+        st.error(f"❌ Errore di connessione: {str(e)}")
+        return None, False
+
 
 # Initialize session state
 if "final_argumentation" not in st.session_state:
@@ -198,10 +285,34 @@ if "word_tracking" not in st.session_state:
     st.session_state.word_tracking = defaultdict(int)
 if "last_check_time" not in st.session_state:
     st.session_state.last_check_time = time.time()
+if "user_info" not in st.session_state:
+    st.session_state.user_info = {
+        "prolific_id": "TEST_USER_001",
+        "start_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+if "sheet_connected" not in st.session_state:
+    st.session_state.sheet_connected = False
 
-# Sidebar for settings
+# Tentare la connessione a Google Sheets
+sheet, is_connected = init_google_sheets()
+st.session_state.sheet_connected = is_connected
+
+# Sidebar per settings
 with st.sidebar:
     st.header("⚙️ Test Settings")
+    
+    st.markdown("### 🔗 Database Connection")
+    if st.session_state.sheet_connected:
+        st.markdown("<div class='success-badge'>✅ Connected to Google Sheets</div>", unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div class='warning'>
+            ⚠️ Not connected to Google Sheets<br>
+            Make sure secrets.toml is configured
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("---")
     
     use_mock_api = st.checkbox(
         "Use Mock API Response",
@@ -209,23 +320,35 @@ with st.sidebar:
         help="If unchecked, requires valid OpenAI API key"
     )
     
+    api_key = None
     if not use_mock_api:
         api_key = st.text_input("OpenAI API Key", type="password", placeholder="sk-...")
         if not api_key:
             st.warning("⚠️ API key required to use real OpenAI API")
     
     st.markdown("---")
+    
+    # Edit user info
+    st.markdown("### 👤 User Info")
+    prolific_id = st.text_input(
+        "Prolific ID",
+        value=st.session_state.user_info["prolific_id"]
+    )
+    st.session_state.user_info["prolific_id"] = prolific_id
+    
+    st.markdown("---")
     st.markdown("### 📊 Current State")
     st.json({
+        "Prolific ID": st.session_state.user_info["prolific_id"],
         "Final Argumentation": st.session_state.final_argumentation[:50] + "..." if st.session_state.final_argumentation else None,
         "Chat Messages Count": len(st.session_state.final_chat_messages),
-        "Word Tracking": dict(st.session_state.word_tracking)
+        "Word Tracking Entries": len(st.session_state.word_tracking)
     })
 
 # Main content
 st.markdown(f"""
 <div class="success-badge">
-    Testing Phase 4 - Final Argumentation Form + Lateral Chat
+    Testing Phase 4 - Final Argumentation Form + Lateral Chat (with Database Save)
 </div>
 """, unsafe_allow_html=True)
 
@@ -247,10 +370,7 @@ def track_words_callback():
     current_text = st.session_state.get("argumentation_input", "")
     word_count = len(current_text.split()) if current_text.strip() else 0
     
-    # Arrotonda il tempo al secondo più vicino
     second_bucket = int(current_time)
-    
-    # Salva il conteggio delle parole per quel secondo
     st.session_state.word_tracking[second_bucket] = word_count
     st.session_state.last_check_time = current_time
 
@@ -269,7 +389,7 @@ with col_form:
     
     # Form only for submit button
     with st.form("final_argumentation_form"):
-        submitted = st.form_submit_button("Submit and Complete", use_container_width=True)
+        submitted = st.form_submit_button("Submit and Save to Database", use_container_width=True)
 
     if submitted:
         if argumentation.strip():
@@ -278,11 +398,58 @@ with col_form:
             # Final tracking
             track_words_callback()
             
-            # Print tracking (visible in logs/debug)
-            st.success("✅ Argumentation saved!")
+            # Print tracking
             print("📊 WORD TRACKING PER SECONDO:")
             for second, word_count in sorted(st.session_state.word_tracking.items()):
                 print(f"  Secondo {second}: {word_count} parole")
+            
+            # Try to save to database
+            if st.session_state.sheet_connected:
+                # Mock data for testing
+                mock_prompt_data = {
+                    "title": "Why not drink during job interview",
+                    "description": "A discussion about professional conduct"
+                }
+                mock_messages = [
+                    {"role": "assistant", "content": "Why do you think it's inappropriate to drink during a job interview?"},
+                    {"role": "user", "content": "It's unprofessional."}
+                ]
+                
+                success = save_to_google_sheets(
+                    sheet,
+                    st.session_state.user_info,
+                    "norm_test",
+                    mock_prompt_data,
+                    mock_messages,
+                    argumentation,
+                    word_tracking=dict(st.session_state.word_tracking),
+                    final_chat_messages=st.session_state.final_chat_messages
+                )
+                
+                if success:
+                    st.markdown("""
+                        <div class="success-badge">
+                            ✅ Data saved to Google Sheets successfully!
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Also save locally
+                    filename = save_conversation_to_json(
+                        st.session_state.user_info,
+                        mock_prompt_data,
+                        mock_messages
+                    )
+                    if filename:
+                        st.info(f"📁 Local copy saved: {filename}")
+                else:
+                    st.markdown("<div class='error'>❌ Failed to save to Google Sheets</div>", unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                    <div class='warning'>
+                        ⚠️ Google Sheets not connected. Data NOT saved to database.
+                        <br>Please configure secrets.toml to enable database saving.
+                    </div>
+                """, unsafe_allow_html=True)
             
             # Display summary
             st.markdown("### 📋 Response Summary")
@@ -330,12 +497,12 @@ This could include points about professionalism, respect for the interviewer, he
                 response_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             else:
                 # Real OpenAI API
-                if not use_mock_api and 'api_key' not in locals():
+                if not api_key:
                     st.error("❌ API key required for real responses")
                     response_text = "Error: API key not provided"
                     response_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 else:
-                    openai_client = OpenAI(api_key=api_key if not use_mock_api else "dummy")
+                    openai_client = OpenAI(api_key=api_key)
                     final_chat_system_prompt = "You are a helpful assistant. Answer questions about the topic discussed: why it's not correct to drink during a job interview. Be supportive and provide insights."
                     
                     messages_for_api = [{"role": "system", "content": final_chat_system_prompt}] + [
@@ -365,19 +532,29 @@ This could include points about professionalism, respect for the interviewer, he
 
 # Footer with data export
 st.markdown("---")
-st.markdown("## 📥 Export Test Data")
+st.markdown("## 📥 Export & Reset")
 
 col1, col2 = st.columns(2)
 
 with col1:
-    if st.button("📋 Copy Session State", use_container_width=True):
+    if st.button("📋 Export Session Data", use_container_width=True):
         session_data = {
+            "user_info": st.session_state.user_info,
             "final_argumentation": st.session_state.final_argumentation,
             "final_chat_messages": st.session_state.final_chat_messages,
             "word_tracking": dict(st.session_state.word_tracking),
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         st.json(session_data)
+        
+        # Download as JSON
+        json_str = json.dumps(session_data, ensure_ascii=False, indent=2)
+        st.download_button(
+            label="Download as JSON",
+            data=json_str,
+            file_name=f"phase4_test_{st.session_state.user_info['prolific_id']}.json",
+            mime="application/json"
+        )
 
 with col2:
     if st.button("🔄 Reset All Data", use_container_width=True):
@@ -391,9 +568,10 @@ with col2:
 # Display current session state at the bottom
 with st.expander("🔍 Full Session State (Debug Info)"):
     debug_data = {
-        "final_argumentation": st.session_state.final_argumentation,
+        "user_info": st.session_state.user_info,
+        "final_argumentation_length": len(st.session_state.final_argumentation) if st.session_state.final_argumentation else 0,
         "final_chat_messages_count": len(st.session_state.final_chat_messages),
         "word_tracking": dict(st.session_state.word_tracking),
-        "last_check_time": st.session_state.last_check_time
+        "sheet_connected": st.session_state.sheet_connected
     }
     st.json(debug_data)
