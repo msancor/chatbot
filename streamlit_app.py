@@ -189,6 +189,25 @@ st.markdown("""
         color: #666;
         font-size: 0.9rem;
     }
+    
+    .timestamp {
+        font-size: 0.8rem;
+        color: #999;
+        margin-top: 0.5rem;
+    }
+    
+    [data-testid="stTextArea"] textarea {
+        border: 1.5px solid #e5e7eb !important;
+        border-radius: 8px !important;
+        padding: 1rem !important;
+        font-size: 0.95rem !important;
+        font-family: 'Segoe UI', Trebuchet MS, sans-serif;
+    }
+    
+    [data-testid="stTextArea"] textarea:focus {
+        border-color: #003d82 !important;
+        box-shadow: 0 0 0 3px rgba(0, 61, 130, 0.1) !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -248,14 +267,12 @@ def save_conversation_to_json(user_info, prompt_data, messages, filename=None):
         # Genera il nome del file se non fornito
         if filename is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"conversation_{user_info['name']}_{timestamp}.json"
+            filename = f"conversation_{user_info['prolific_id']}_{timestamp}.json"
         
         # Crea la struttura dei dati
         conversation_data = {
             "metadata": {
-                "user_name": user_info['name'],
-                "user_surname": user_info['surname'],
-                "user_birthplace": user_info['birthplace'],
+                "prolific_id": user_info['prolific_id'],
                 "prompt_title": prompt_data['title'],
                 "prompt_description": prompt_data['description'],
                 "start_date": user_info['start_date'],
@@ -308,6 +325,10 @@ try:
         st.session_state.initial_score = None
     if "selected_prompt_key" not in st.session_state:
         st.session_state.selected_prompt_key = None
+    if "conversation_ended" not in st.session_state:
+        st.session_state.conversation_ended = False
+    if "final_argumentation" not in st.session_state:
+        st.session_state.final_argumentation = None
     
     # Verifica se i prompt sono stati caricati
     if not PROMPTS:
@@ -324,20 +345,16 @@ try:
         st.markdown("<h2 style='color: #1a1a1a; font-weight: 600; margin-bottom: 2rem;'>Participant Information</h2>", unsafe_allow_html=True)
         
         with st.form("questionnaire_form"):
-            name = st.text_input("First Name", placeholder="Enter your first name")
-            surname = st.text_input("Last Name", placeholder="Enter your last name")
-            birthplace = st.text_input("Place of Birth", placeholder="Enter your place of birth")
+            prolific_id = st.text_input("Prolific ID", placeholder="Enter your Prolific ID")
             
             st.markdown("<p class='info-text'>Your information will be used only for research purposes.</p>", unsafe_allow_html=True)
             
             submitted = st.form_submit_button("Continue to Prompt Selection", use_container_width=True)
             
             if submitted:
-                if name and surname and birthplace:
+                if prolific_id:
                     st.session_state.user_info = {
-                        "name": name,
-                        "surname": surname,
-                        "birthplace": birthplace,
+                        "prolific_id": prolific_id,
                         "start_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }
                     st.session_state.user_data_collected = True
@@ -350,7 +367,7 @@ try:
         user_info = st.session_state.user_info
         st.markdown(f"""
         <div class="success-badge">
-            Welcome, <strong>{user_info['name']}</strong>! Please select a topic for our conversation.
+            Welcome, <strong>{user_info['prolific_id']}</strong>! Please select a topic for our conversation.
         </div>
         """, unsafe_allow_html=True)
         
@@ -375,14 +392,14 @@ try:
                 st.rerun()
     
     # PHASE 3: Chat with OpenAI
-    else:
+    elif not st.session_state.conversation_ended:
         user_info = st.session_state.user_info
         prompt_key = st.session_state.selected_prompt_key
         prompt_data = PROMPTS[prompt_key]
         
         st.markdown(f"""
         <div class="success-badge">
-            Welcome back, <strong>{user_info['name']}</strong>. Topic: <strong>{prompt_data['title']}</strong>
+            Welcome back, <strong>{user_info['prolific_id']}</strong>. Topic: <strong>{prompt_data['title']}</strong>
         </div>
         """, unsafe_allow_html=True)
         
@@ -413,31 +430,42 @@ try:
             )
             
             initial_message = greeting_response.choices[0].message.content
-            st.session_state.messages.append({"role": "assistant", "content": initial_message})
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": initial_message,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
             st.session_state.greeting_sent = True
             st.session_state.conversation_phase = "opinion_measurement"
         
+        # Display messages with timestamps
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
+                st.markdown(f"<div class='timestamp'>{message.get('timestamp', 'N/A')}</div>", unsafe_allow_html=True)
         
         # Chat input
         st.markdown("<br>", unsafe_allow_html=True)
         if prompt := st.chat_input("Your response..."):
-            # Add user message
-            st.session_state.messages.append({"role": "user", "content": prompt})
+            # Add user message with timestamp
+            st.session_state.messages.append({
+                "role": "user",
+                "content": prompt,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
             with st.chat_message("user"):
                 st.markdown(prompt)
+                st.markdown(f"<div class='timestamp'>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>", unsafe_allow_html=True)
             
             # Generate response from OpenAI
-            messages_with_system = [{"role": "system", "content": system_prompt}] + [
+            messages_for_api = [{"role": "system", "content": system_prompt}] + [
                 {"role": m["role"], "content": m["content"]}
                 for m in st.session_state.messages
             ]
             
             stream = openai_client.chat.completions.create(
                 model="gpt-3.5-turbo",
-                messages=messages_with_system,
+                messages=messages_for_api,
                 stream=True,
             )
             
@@ -445,26 +473,82 @@ try:
             with st.chat_message("assistant"):
                 response = st.write_stream(stream)
             
-            st.session_state.messages.append({"role": "assistant", "content": response})
+            response_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            st.markdown(f"<div class='timestamp'>{response_timestamp}</div>", unsafe_allow_html=True)
             
-            # ================================================================
-            # SALVATAGGIO IN GOOGLE SHEETS (come prima)
-            # ================================================================
-            conversation_json = json.dumps(st.session_state.messages, ensure_ascii=False, indent=2)
-            sheet.append_row([
-                user_info["name"],
-                user_info["surname"],
-                user_info["birthplace"],
-                prompt_key,
-                prompt_data["title"],
-                conversation_json,
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            ])
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": response,
+                "timestamp": response_timestamp
+            })
             
-            # ================================================================
-            # SALVATAGGIO LOCALE IN JSON
-            # ================================================================
-            save_conversation_to_json(user_info, prompt_data, st.session_state.messages)
+            # Check if conversation should end (LLM responds with ABRACADABRA)
+            if "ABRACADABRA" in response:
+                st.session_state.conversation_ended = True
+                st.rerun()
+    
+    # PHASE 4: Final Argumentation Form
+    else:
+        user_info = st.session_state.user_info
+        prompt_key = st.session_state.selected_prompt_key
+        prompt_data = PROMPTS[prompt_key]
+        
+        st.markdown(f"""
+        <div class="success-badge">
+            Thank you for the conversation, <strong>{user_info['prolific_id']}</strong>!
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("<h2 style='color: #1a1a1a; font-weight: 600; margin-bottom: 2rem;'>Final Question</h2>", unsafe_allow_html=True)
+        
+        st.markdown("""
+        <p style='color: #666; margin-bottom: 1.5rem; font-size: 1rem;'>
+            Please explain in detail why you believe it is <strong>not correct to drink during a job interview</strong>. 
+            Share your reasoning and any relevant considerations.
+        </p>
+        """, unsafe_allow_html=True)
+        
+        with st.form("final_argumentation_form"):
+            argumentation = st.text_area(
+                "Your argumentation:",
+                placeholder="Type your explanation here...",
+                height=250,
+                label_visibility="collapsed"
+            )
+            
+            submitted = st.form_submit_button("Submit and Complete", use_container_width=True)
+            
+            if submitted:
+                if argumentation.strip():
+                    st.session_state.final_argumentation = argumentation
+                    
+                    # Save conversation to JSON locally
+                    save_conversation_to_json(user_info, prompt_data, st.session_state.messages)
+                    
+                    # Save conversation and final argumentation to Google Sheets
+                    conversation_json = json.dumps(st.session_state.messages, ensure_ascii=False, indent=2)
+                    sheet.append_row([
+                        user_info["prolific_id"],
+                        prompt_key,
+                        prompt_data["title"],
+                        conversation_json,
+                        argumentation,
+                        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    ])
+                    
+                    st.markdown("""
+                    <div class="success-badge">
+                        ✅ Thank you for your participation! Your responses have been recorded.
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    st.markdown("""
+                    <p style='color: #666; margin-top: 2rem; font-size: 0.95rem;'>
+                        Your data has been saved and will be used for research purposes only.
+                    </p>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown("<div class='error'>Please provide an argumentation to continue.</div>", unsafe_allow_html=True)
 
 except KeyError as e:
     st.markdown("""
