@@ -535,8 +535,10 @@ try:
         prompt_key = st.session_state.selected_prompt_key
         prompt_data = PROMPTS[prompt_key]
         norm_key = st.session_state.selected_norm_key
+        print(norm_key)
         norm_data = NORMS[norm_key]
-        
+        print(norm_data)
+
         st.markdown(f"""
         <div class="success-badge">
             Welcome back, <strong>{user_info['prolific_id']}</strong>. 
