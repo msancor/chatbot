@@ -515,7 +515,6 @@ try:
             st.markdown(f"""
             <div class="prompt-option">
                 <h3>{norm_data['title']}</h3>
-                <p>{norm_data['description']}</p>
             </div>
             """, unsafe_allow_html=True)
             
@@ -569,7 +568,7 @@ try:
         
         # Get the system prompt template and inject the selected norm
         system_prompt_template = prompt_data.get("system_prompt_template", prompt_data.get("system_prompt", ""))
-        system_prompt = system_prompt_template.replace("{NORM_DESCRIPTION}", norm_data["description"])
+        system_prompt = system_prompt_template.replace("{NORM_DESCRIPTION}", norm_data["title"])
         
         # Generate initial greeting if not yet sent
         if not st.session_state.greeting_sent:
@@ -665,7 +664,7 @@ try:
         
         # Create OpenAI client for final chat
         openai_client = OpenAI(api_key=openai_api_key)
-        final_chat_system_prompt = f"You are a helpful assistant. Answer questions about the topic discussed: {norm_data['description']}. Be supportive and provide insights."
+        final_chat_system_prompt = f"You are a helpful assistant. Answer questions about the topic discussed: {norm_data['title']}. Be supportive and provide insights."
         
         # Create two columns: form on left, AI Assistant on right
         col_form, col_assistant = st.columns([2, 1])
