@@ -262,11 +262,6 @@ def check_prolific_id_exists(sheet, prolific_id):
 # ============================================================================
 # ANALISI FREQUENZE COMBINAZIONI PROMPT-NORM
 # ============================================================================
-
-
-# ============================================================================
-# ANALISI FREQUENZE COMBINAZIONI PROMPT-NORM
-# ============================================================================
 def get_least_used_combination(sheet, prompts_dict, norms_dict):
     """
     Analizza il Google Sheet e trova la combinazione Prompt-Norm meno utilizzata.
@@ -313,6 +308,11 @@ def get_least_used_combination(sheet, prompts_dict, norms_dict):
         print(f"✅ Combinazione selezionata: {selected_combination}")
         
         return selected_combination
+    
+    except Exception as e:
+        print(f"❌ ERRORE nell'analisi delle frequenze: {str(e)}")
+        st.error(f"❌ Errore nell'analisi delle frequenze: {str(e)}")
+        return (list(prompts_dict.keys())[0], list(norms_dict.keys())[0])
 
 
 # ============================================================================
@@ -552,7 +552,7 @@ try:
             st.rerun()
         
         # Show end button after 3 messages
-        if user_message_count >= 0:
+        if user_message_count >= 3:
             if st.button("End Conversation", key="end_conversation_btn", use_container_width=True, type="secondary"):
                 st.session_state.conversation_ended = True
                 st.rerun()
