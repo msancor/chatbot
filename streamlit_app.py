@@ -262,18 +262,12 @@ def check_prolific_id_exists(sheet, prolific_id):
 # ============================================================================
 # ANALISI FREQUENZE COMBINAZIONI PROMPT-NORM
 # ============================================================================
-
-
-# ============================================================================
-# ANALISI FREQUENZE COMBINAZIONI PROMPT-NORM
-# ============================================================================
 def get_least_used_combination(sheet, prompts_dict, norms_dict):
     """
     Analizza il Google Sheet e trova la combinazione Prompt-Norm meno utilizzata.
     """
     try:
         all_data = sheet.get_all_values()
-        print(f"📊 Totale righe nel Google Sheet: {len(all_data)}")
         
         combination_counts = defaultdict(int)
         
@@ -281,8 +275,6 @@ def get_least_used_combination(sheet, prompts_dict, norms_dict):
         for prompt_key in prompts_dict.keys():
             for norm_key in norms_dict.keys():
                 combination_counts[(prompt_key, norm_key)] = 0
-        
-        print(f"🔢 Totale combinazioni possibili: {len(combination_counts)}")
         
         # Conta le combinazioni esistenti nel Google Sheet
         if len(all_data) > 1:
@@ -294,10 +286,6 @@ def get_least_used_combination(sheet, prompts_dict, norms_dict):
                     if prompt_key in prompts_dict and norm_key in norms_dict:
                         combination_counts[(prompt_key, norm_key)] += 1
         
-        print(f"📈 Frequenze combinazioni:")
-        for combo, count in sorted(combination_counts.items(), key=lambda x: x[1]):
-            print(f"   {combo}: {count} volte")
-        
         # Trova la combinazione con la frequenza minima
         min_count = min(combination_counts.values())
         least_used_combinations = [
@@ -305,14 +293,13 @@ def get_least_used_combination(sheet, prompts_dict, norms_dict):
             if count == min_count
         ]
         
-        print(f"🎯 Frequenza minima: {min_count}")
-        print(f"🎲 Combinazioni con frequenza minima ({len(least_used_combinations)}): {least_used_combinations}")
-        
         selected_combination = random.choice(least_used_combinations)
         
-        print(f"✅ Combinazione selezionata: {selected_combination}")
-        
         return selected_combination
+    
+    except Exception as e:
+        st.error(f"❌ Errore nell'analisi delle frequenze: {str(e)}")
+        return (list(prompts_dict.keys())[0], list(norms_dict.keys())[0])
 
 
 # ============================================================================
