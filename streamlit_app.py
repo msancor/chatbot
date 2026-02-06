@@ -239,8 +239,6 @@ def check_prolific_id_exists(sheet, prolific_id):
 def get_least_used_combination(sheet, prompts_dict, norms_dict):
     """
     Analizza il Google Sheet e trova la combinazione Prompt-Norm meno utilizzata.
-    ATTENZIONE: Le colonne ora sono:
-    Prolific ID (0), Prompt (1), Norm (2), Opinion Pre (3), Chat With LLM (4), Opinion Post (5), Timestamp (6)
     """
     try:
         all_data = sheet.get_all_values()
@@ -253,12 +251,11 @@ def get_least_used_combination(sheet, prompts_dict, norms_dict):
                 combination_counts[(prompt_key, norm_key)] = 0
         
         # Conta le combinazioni esistenti nel Google Sheet
-        # Colonne: Prolific ID (0), Prompt (1), Norm (2)
         if len(all_data) > 1:
             for row in all_data[1:]:
                 if len(row) >= 3:
-                    prompt_key = row[1]  # Colonna Prompt
-                    norm_key = row[2]    # Colonna Norm
+                    prompt_key = row[1]
+                    norm_key = row[2]
                     
                     if prompt_key in prompts_dict and norm_key in norms_dict:
                         combination_counts[(prompt_key, norm_key)] += 1
@@ -280,31 +277,59 @@ def get_least_used_combination(sheet, prompts_dict, norms_dict):
 
 
 # ============================================================================
-# SALVATAGGIO SU GOOGLE SHEETS
+# SALVATAGGIO SU GOOGLE SHEETS - VERSIONE CORRETTA
 # ============================================================================
 def save_to_google_sheets(sheet, user_info, prompt_key, norm_key, messages, 
                           initial_opinion=None, final_opinion=None):
     """
-    Salva i dati su Google Sheets con le colonne semplificate:
-    Prolific ID | Prompt | Norm | Opinion Pre | Chat With LLM | Opinion Post | Timestamp
+    Salva i dati su Google Sheets.
+    CORREZIONE: Gestisce correttamente i valori None e converte tutto in stringe.
     """
     try:
+        # Converti la conversazione in JSON
         conversation_json = json.dumps(messages, ensure_ascii=False, indent=2)
         
-        sheet.append_row([
-            user_info["prolific_id"],           # Prolific ID
-            prompt_key,                         # Prompt
-            norm_key,                           # Norm
-            str(initial_opinion) if initial_opinion is not None else "",  # Opinion Pre
-            conversation_json,                  # Chat With LLM
-            str(final_opinion) if final_opinion is not None else "",      # Opinion Post
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # Timestamp
-        ])
-        return True
+        # Prepara i dati assicurandosi che siano tutti stringhe
+        row_data = [
+            str(user_info.get("prolific_id", "")),
+            str(prompt_key),
+            str(norm_key),
+            str(initial_opinion) if initial_opinion is not None else "",
+            conversation_json,
+            str(final_opinion) if final_opinion is not None else "",
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ]
+        
+        # Debug: mostra i dati che stai per salvare
+        st.write("DEBUG - Dati da salvare:", row_data)
+        
+        # Append row with retry logic
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                sheet.append_row(row_data, value_input_option='RAW')
+                st.success("✅ Dati salvati con successo!")
+                return True
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    st.warning(f"Tentativo {attempt + 1} fallito, riprovo...")
+                    time.sleep(2)
+                else:
+                    raise e
+        
+        return False
+        
     except Exception as e:
         st.error(f"❌ Errore nel salvataggio su Google Sheets: {str(e)}")
+        st.error(f"Tipo di errore: {type(e).__name__}")
+        import traceback
+        st.error(f"Traceback completo:\n{traceback.format_exc()}")
         return False
 
+
+# ============================================================================
+# MAIN APP
+# ============================================================================
 
 try:
     # Load credentials and URL from secrets.toml
@@ -313,13 +338,24 @@ try:
     openai_api_key = st.secrets["openai_api_key"]
     
     # Configure credentials with correct scopes
-    scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+    scopes = [
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/drive'
+    ]
     creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     client_sheets = gspread.authorize(creds)
     
     # Open the sheet
     spreadsheet = client_sheets.open_by_url(sheet_url)
     sheet = spreadsheet.sheet1
+    
+    # VERIFICA: Controlla se il foglio è accessibile
+    try:
+        headers = sheet.row_values(1)
+        st.sidebar.success(f"✅ Connesso a Google Sheets")
+        st.sidebar.info(f"Headers: {headers}")
+    except Exception as e:
+        st.sidebar.error(f"❌ Errore accesso sheet: {e}")
     
     # Initialize session state
     if "user_data_collected" not in st.session_state:
@@ -419,7 +455,7 @@ try:
             "Rate your agreement (1 = Strongly Disagree, 100 = Strongly Agree)",
             min_value=1,
             max_value=100,
-            value=4,
+            value=50,
             key="initial_opinion_slider"
         )
         
@@ -441,7 +477,7 @@ try:
         st.markdown(f"""
         <div class="success-badge">
             Topic: <strong>{prompt_data['title']}</strong> | Norm: <strong>{norm_data['title']}</strong>
-            <br>Initial Opinion: <strong>{st.session_state.initial_opinion}/7</strong>
+            <br>Initial Opinion: <strong>{st.session_state.initial_opinion}/100</strong>
         </div>
         """, unsafe_allow_html=True)
         
@@ -550,25 +586,30 @@ try:
             key="final_opinion_slider"
         )
         
-        st.markdown(f"<p style='color: #999; font-size: 0.9rem; margin-top: 1rem;'>Your initial opinion was: <strong>{st.session_state.initial_opinion}/7</strong></p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='color: #999; font-size: 0.9rem; margin-top: 1rem;'>Your initial opinion was: <strong>{st.session_state.initial_opinion}/100</strong></p>", unsafe_allow_html=True)
         
         if st.button("Submit and Complete", key="submit_final_opinion", use_container_width=True, type="primary"):
             st.session_state.final_opinion = final_opinion
             
-            # Salva su Google Sheets
-            success = save_to_google_sheets(
-                sheet,
-                user_info,
-                st.session_state.selected_prompt_key,
-                st.session_state.selected_norm_key,
-                st.session_state.messages,
-                initial_opinion=st.session_state.initial_opinion,
-                final_opinion=final_opinion
-            )
-            
-            if success:
-                st.session_state.data_saved = True
-                st.rerun()
+            # Mostra un messaggio di caricamento
+            with st.spinner("Saving your data..."):
+                # Salva su Google Sheets
+                success = save_to_google_sheets(
+                    sheet,
+                    user_info,
+                    st.session_state.selected_prompt_key,
+                    st.session_state.selected_norm_key,
+                    st.session_state.messages,
+                    initial_opinion=st.session_state.initial_opinion,
+                    final_opinion=final_opinion
+                )
+                
+                if success:
+                    st.session_state.data_saved = True
+                    time.sleep(1)  # Piccola pausa per mostrare il messaggio di successo
+                    st.rerun()
+                else:
+                    st.error("❌ Errore nel salvataggio. Riprova o contatta il ricercatore.")
         
         st.markdown("</div>", unsafe_allow_html=True)
     
@@ -579,11 +620,26 @@ try:
             ✅ Thank you for your participation! Your responses have been recorded.
         </div>
         """, unsafe_allow_html=True)
+        
+        st.markdown(f"""
+        <div style="margin-top: 2rem; padding: 1.5rem; background: white; border-radius: 8px;">
+            <h3>Summary of your session:</h3>
+            <ul>
+                <li>Prolific ID: {st.session_state.user_info.get('prolific_id', 'N/A')}</li>
+                <li>Topic: {PROMPTS[st.session_state.selected_prompt_key]['title']}</li>
+                <li>Norm: {NORMS[st.session_state.selected_norm_key]['title']}</li>
+                <li>Initial Opinion: {st.session_state.initial_opinion}/100</li>
+                <li>Final Opinion: {st.session_state.final_opinion}/100</li>
+                <li>Messages exchanged: {len(st.session_state.messages)}</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
 
 except KeyError as e:
-    st.markdown("""
+    st.markdown(f"""
     <div class="error">
-        <strong>Configuration Error:</strong> Please configure secrets.toml
+        <strong>Configuration Error:</strong> Missing key in secrets: {str(e)}
+        <br>Please configure secrets.toml with all required fields.
     </div>
     """, unsafe_allow_html=True)
 except Exception as e:
@@ -592,3 +648,5 @@ except Exception as e:
         <strong>Error:</strong> {str(e)}
     </div>
     """, unsafe_allow_html=True)
+    import traceback
+    st.code(traceback.format_exc())
