@@ -326,19 +326,14 @@ def save_to_google_sheets(sheet, user_info, prompt_key, norm_key, messages,
             datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ]
         
-        # Debug: mostra i dati che stai per salvare
-        st.write("DEBUG - Dati da salvare:", row_data)
-        
         # Append row with retry logic
         max_retries = 3
         for attempt in range(max_retries):
             try:
                 sheet.append_row(row_data, value_input_option='RAW')
-                st.success("✅ Dati salvati con successo!")
                 return True
             except Exception as e:
                 if attempt < max_retries - 1:
-                    st.warning(f"Tentativo {attempt + 1} fallito, riprovo...")
                     time.sleep(2)
                 else:
                     raise e
@@ -346,10 +341,6 @@ def save_to_google_sheets(sheet, user_info, prompt_key, norm_key, messages,
         return False
         
     except Exception as e:
-        st.error(f"❌ Errore nel salvataggio su Google Sheets: {str(e)}")
-        st.error(f"Tipo di errore: {type(e).__name__}")
-        import traceback
-        st.error(f"Traceback completo:\n{traceback.format_exc()}")
         return False
 
 
@@ -439,27 +430,25 @@ try:
             submitted = st.form_submit_button("Continue", use_container_width=True)
             
             if submitted:
-                if prolific_id:
-                    if check_prolific_id_exists(sheet, prolific_id):
-                        st.markdown("""
-                        <div class="warning">
-                            ⚠️ <strong>This Prolific ID has already been used.</strong>
-                            <br>If you believe this is an error, please contact the researcher.
-                        </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        selected_prompt_key, selected_norm_key = get_least_used_combination(sheet, PROMPTS, NORMS)
-                        
-                        st.session_state.user_info = {
-                            "prolific_id": prolific_id,
-                            "start_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        }
-                        st.session_state.selected_prompt_key = selected_prompt_key
-                        st.session_state.selected_norm_key = selected_norm_key
-                        st.session_state.user_data_collected = True
-                        st.rerun()
+                if not prolific_id:
+                    st.markdown("<div class='error'>Please enter your Prolific ID to continue.</div>", unsafe_allow_html=True)
+                elif check_prolific_id_exists(sheet, prolific_id):
+                    st.markdown("""
+                    <div class='warning'>
+                        ⚠️ <strong>This Prolific ID has already been used.</strong> Please enter a different ID.
+                    </div>
+                    """, unsafe_allow_html=True)
                 else:
-                    st.markdown("<div class='error'>Please fill in all fields to continue.</div>", unsafe_allow_html=True)
+                    selected_prompt_key, selected_norm_key = get_least_used_combination(sheet, PROMPTS, NORMS)
+                    
+                    st.session_state.user_info = {
+                        "prolific_id": prolific_id,
+                        "start_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    st.session_state.selected_prompt_key = selected_prompt_key
+                    st.session_state.selected_norm_key = selected_norm_key
+                    st.session_state.user_data_collected = True
+                    st.rerun()
     
     # PHASE 2: Initial Opinion Collection
     elif not st.session_state.initial_opinion_collected:
@@ -617,25 +606,20 @@ try:
         if st.button("Submit and Complete", key="submit_final_opinion", use_container_width=True, type="primary"):
             st.session_state.final_opinion = final_opinion
             
-            # Mostra un messaggio di caricamento
-            with st.spinner("Saving your data..."):
-                # Salva su Google Sheets
-                success = save_to_google_sheets(
-                    sheet,
-                    user_info,
-                    st.session_state.selected_prompt_key,
-                    st.session_state.selected_norm_key,
-                    st.session_state.messages,
-                    initial_opinion=st.session_state.initial_opinion,
-                    final_opinion=final_opinion
-                )
-                
-                if success:
-                    st.session_state.data_saved = True
-                    time.sleep(1)  # Piccola pausa per mostrare il messaggio di successo
-                    st.rerun()
-                else:
-                    st.error("❌ Errore nel salvataggio. Riprova o contatta il ricercatore.")
+            # Salva su Google Sheets
+            success = save_to_google_sheets(
+                sheet,
+                user_info,
+                st.session_state.selected_prompt_key,
+                st.session_state.selected_norm_key,
+                st.session_state.messages,
+                initial_opinion=st.session_state.initial_opinion,
+                final_opinion=final_opinion
+            )
+            
+            if success:
+                st.session_state.data_saved = True
+                st.rerun()
         
         st.markdown("</div>", unsafe_allow_html=True)
     
