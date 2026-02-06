@@ -416,9 +416,9 @@ try:
         st.markdown(f"<p style='color: #666; margin-bottom: 2rem;'>Before starting the conversation, please indicate your current opinion on: <strong>{norm_data['title']}</strong></p>", unsafe_allow_html=True)
         
         initial_opinion = st.slider(
-            "Rate your agreement (1 = Strongly Disagree, 7 = Strongly Agree)",
+            "Rate your agreement (1 = Strongly Disagree, 100 = Strongly Agree)",
             min_value=1,
-            max_value=7,
+            max_value=100,
             value=4,
             key="initial_opinion_slider"
         )
@@ -543,9 +543,9 @@ try:
         st.markdown(f"<p style='color: #666; margin-bottom: 2rem;'>After the conversation, please indicate your current opinion on: <strong>{norm_data['title']}</strong></p>", unsafe_allow_html=True)
         
         final_opinion = st.slider(
-            "Rate your agreement (1 = Strongly Disagree, 7 = Strongly Agree)",
+            "Rate your agreement (1 = Strongly Disagree, 100 = Strongly Agree)",
             min_value=1,
-            max_value=7,
+            max_value=100,
             value=st.session_state.initial_opinion,
             key="final_opinion_slider"
         )
