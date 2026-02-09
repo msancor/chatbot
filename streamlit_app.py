@@ -214,12 +214,11 @@ elif st.session_state.phase == 3:
 elif st.session_state.phase == 4:
     prompt_data = PROMPTS[st.session_state.prompt_key]
     norm_data = NORMS[st.session_state.norm_key]
-
     system_prompt = prompt_data["system_prompt_template"].replace(
         "{NORM_DESCRIPTION}", norm_data["title"]
     )
 
-    # Send initial greeting if not already sent
+    # Initial greeting
     if not st.session_state.greeting_sent:
         reply = openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
@@ -234,7 +233,7 @@ elif st.session_state.phase == 4:
             "timestamp": datetime.now().isoformat()
         })
         st.session_state.greeting_sent = True
-        st.rerun()  # rerun to display the greeting
+        st.rerun()
 
     # Display all messages
     for m in st.session_state.messages:
@@ -242,22 +241,21 @@ elif st.session_state.phase == 4:
             st.markdown(m["content"])
 
     assistant_msgs = [m for m in st.session_state.messages if m["role"] == "assistant"]
-    round_count = max(0, len(assistant_msgs) - 1)  # exclude greeting
+    round_count = max(0, len(assistant_msgs) - 1)
 
-    # Track if we need to generate a response after user input
+    # Capture pending user input
     if "pending_user_message" not in st.session_state:
         st.session_state.pending_user_message = None
 
-    # Capture new user input
     if user_input := st.chat_input("Type your response here"):
         st.session_state.pending_user_message = {
             "role": "user",
             "content": user_input,
             "timestamp": datetime.now().isoformat()
         }
-        st.rerun()  # rerun to display user message first
+        st.rerun()  # rerun to render user message first
 
-    # If there is a pending user message, display it first
+    # If pending user message, append and display it
     if st.session_state.pending_user_message:
         user_msg = st.session_state.pending_user_message
         st.session_state.messages.append(user_msg)
@@ -265,7 +263,7 @@ elif st.session_state.phase == 4:
             st.markdown(user_msg["content"])
         st.session_state.pending_user_message = None
 
-        # Now generate assistant response AFTER user message has rendered
+        # Generate assistant response only if < 10 rounds
         if round_count < 10:
             with st.chat_message("assistant"):
                 stream = openai_client.chat.completions.create(
@@ -282,22 +280,24 @@ elif st.session_state.phase == 4:
                 "timestamp": datetime.now().isoformat()
             })
 
-            st.rerun()  # rerun to display the assistant message
+            st.rerun()
         else:
-            # Maximum 10 rounds reached, send final assistant message
+            # 10th round completed — final assistant message
             final_message = "Thank you for your thoughtful responses! The discussion is now complete."
             st.session_state.messages.append({
                 "role": "assistant",
                 "content": final_message,
                 "timestamp": datetime.now().isoformat()
             })
-            st.session_state.conversation_ended = True
+
+            # Automatically move to next phase
+            st.session_state.phase = 5
             st.rerun()
 
-    # Show "End Discussion" button after 3 rounds
-    if round_count >= 3 and not st.session_state.conversation_ended:
+    # Show "End Discussion" button after 3 rounds (before 10 rounds)
+    if round_count >= 3 and round_count < 10 and st.session_state.phase == 4:
         if st.button("End Discussion"):
-            st.session_state.conversation_ended = True
+            st.session_state.phase = 5
             st.rerun()
 
 
