@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ============================================================================
-# LOAD FILES
+# LOAD JSON FILES
 # ============================================================================
 def load_json(path):
     if not os.path.exists(path):
@@ -54,15 +54,12 @@ def check_prolific_id_exists(sheet, prolific_id):
 def get_least_used_combination(sheet, prompts, norms):
     data = sheet.get_all_values()
     counts = defaultdict(int)
-
     for p in prompts:
         for n in norms:
             counts[(p, n)] = 0
-
     for row in data[1:]:
         if len(row) >= 3 and (row[1], row[2]) in counts:
             counts[(row[1], row[2])] += 1
-
     min_count = min(counts.values())
     return random.choice([k for k, v in counts.items() if v == min_count])
 
@@ -86,14 +83,29 @@ sheet = gspread.authorize(creds).open_by_url(
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
 # ============================================================================
-# SESSION STATE
+# PROLIFIC ID CHECK AT THE VERY START
+# ============================================================================
+prolific_id = st.query_params.get("PROLIFIC_PID", "")
+if not prolific_id:
+    st.error("Please access this study via Prolific to continue.")
+    st.stop()
+
+if "prolific_id" not in st.session_state:
+    st.session_state.prolific_id = prolific_id
+
+if check_prolific_id_exists(sheet, prolific_id):
+    st.error("This Prolific ID has already completed the study. You cannot participate again.")
+    st.stop()
+
+# ============================================================================
+# SESSION STATE DEFAULTS
 # ============================================================================
 DEFAULTS = {
     "phase": 0,
     "messages": [],
     "greeting_sent": False,
     "conversation_ended": False,
-    "data_saved": False
+    "data_saved": False,
 }
 for k, v in DEFAULTS.items():
     if k not in st.session_state:
@@ -104,7 +116,6 @@ for k, v in DEFAULTS.items():
 # ============================================================================
 if st.session_state.phase == 0:
     st.markdown("## Welcome")
-
     st.markdown("""
     Thank you for taking part in this study.
 
@@ -115,7 +126,6 @@ if st.session_state.phase == 0:
 
     Please complete the study in one sitting and respond thoughtfully.
     """)
-
     if st.button("Begin"):
         st.session_state.phase = 1
         st.rerun()
@@ -124,7 +134,6 @@ if st.session_state.phase == 0:
 # PHASE 1 — COMPREHENSION QUESTION
 # ============================================================================
 elif st.session_state.phase == 1:
-
     if "comp_start_time" not in st.session_state:
         st.session_state.comp_start_time = time.time()
 
@@ -147,7 +156,6 @@ elif st.session_state.phase == 1:
 # PHASE 2 — BACKGROUND QUESTION (ENGAGEMENT)
 # ============================================================================
 elif st.session_state.phase == 2:
-
     if "engagement_start_time" not in st.session_state:
         st.session_state.engagement_start_time = time.time()
 
@@ -170,35 +178,22 @@ elif st.session_state.phase == 2:
         st.rerun()
 
 # ============================================================================
-# PHASE 3 — INITIAL OPINION (NOW IMMEDIATELY BEFORE LLM)
+# PHASE 3 — INITIAL OPINION
 # ============================================================================
 elif st.session_state.phase == 3:
-
-    prolific_id = st.query_params.get("PROLIFIC_PID")
-    if not prolific_id:
-        st.error("Please access this study via Prolific.")
-        st.stop()
-
-    if "prolific_id" not in st.session_state:
-        if check_prolific_id_exists(sheet, prolific_id):
-            st.error("This Prolific ID has already completed the study.")
-            st.stop()
-
+    if "prompt_key" not in st.session_state:
         prompt_key, norm_key = get_least_used_combination(sheet, PROMPTS, NORMS)
-        st.session_state.update({
-            "prolific_id": prolific_id,
-            "prompt_key": prompt_key,
-            "norm_key": norm_key,
-            "start_time": time.time()
-        })
+        st.session_state.prompt_key = prompt_key
+        st.session_state.norm_key = norm_key
+        st.session_state.start_time = time.time()
 
-    norm = NORMS[st.session_state.norm_key]
+    norm_data = NORMS[st.session_state.norm_key]
 
     st.markdown("## Your Initial Opinion")
     st.markdown("Before the discussion begins, please indicate your view.")
 
     opinion = st.slider(
-        norm["title"],
+        norm_data["title"],
         1, 100, 50
     )
 
@@ -211,7 +206,6 @@ elif st.session_state.phase == 3:
 # PHASE 4 — CONVERSATION
 # ============================================================================
 elif st.session_state.phase == 4:
-
     prompt_data = PROMPTS[st.session_state.prompt_key]
     norm_data = NORMS[st.session_state.norm_key]
 
@@ -252,6 +246,7 @@ elif st.session_state.phase == 4:
             "timestamp": datetime.now().isoformat()
         })
 
+        # Stream assistant response after user input
         with st.chat_message("assistant"):
             stream = openai_client.chat.completions.create(
                 model="gpt-3.5-turbo",
@@ -266,7 +261,6 @@ elif st.session_state.phase == 4:
             "content": reply_text,
             "timestamp": datetime.now().isoformat()
         })
-
         st.rerun()
 
     if round_count >= 3:
@@ -278,7 +272,6 @@ elif st.session_state.phase == 4:
 # PHASE 5 — FINAL OPINION & SAVE
 # ============================================================================
 elif st.session_state.phase == 5 and not st.session_state.data_saved:
-
     st.markdown("## Final Opinion")
     final_opinion = st.slider(
         "After the discussion, how much do you agree with the statement?",
@@ -300,14 +293,11 @@ elif st.session_state.phase == 5 and not st.session_state.data_saved:
             st.session_state.initial_opinion,
             json.dumps(st.session_state.messages, ensure_ascii=False),
             final_opinion,
-
             st.session_state.comp_response,
             st.session_state.comp_correct,
             st.session_state.comp_response_time,
-
             st.session_state.engagement_word_count,
             st.session_state.engagement_response_time,
-
             len([m for m in st.session_state.messages if m["role"] == "user"]),
             user_word_count,
             total_duration,
@@ -323,7 +313,6 @@ elif st.session_state.phase == 5 and not st.session_state.data_saved:
 # ============================================================================
 else:
     st.markdown("## Thank you for your participation")
-
     st.markdown("""
     Your responses have been successfully recorded.
 
@@ -331,18 +320,13 @@ else:
     If the redirect does not happen, please click the button below.
     """)
 
-    # Get Prolific PID from session
     prolific_id = st.session_state.get("prolific_id", "")
-
-    # Safe placeholder completion URL for testing
-    # Replace 'XXXXXXX' with your real Prolific study completion code
+    # Safe placeholder for testing; replace with your real Prolific completion code
     completion_base_url = "https://www.prolific.co/"  
     completion_url = f"{completion_base_url}?PROLIFIC_PID={prolific_id}"
 
-    # Manual link
     st.markdown(f"[Return to Prolific]({completion_url})", unsafe_allow_html=True)
 
-    # Auto-redirect after 5 seconds
     if "redirect_triggered" not in st.session_state:
         st.session_state.redirect_triggered = True
         st.components.v1.html(
@@ -355,5 +339,6 @@ else:
             """,
             height=0
         )
+
 
 
