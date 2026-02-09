@@ -37,10 +37,14 @@ NORMS = load_json("norms.json")
 # ============================================================================
 COMPREHENSION_QUESTION = {
     "question": '''People get their news from a variety of sources, and in today’s world reliance on on-line news sources is increasingly common. 
-    We want to know how much of your news consumption comes from on-line sources. We also want to know if people are paying attention to the question. 
-    To show that you’ve read this much, please ignore the question and select “Television or print news only” as your answer. 
-    About how much of your news consumption comes from on-line sources? Please include print newspapers that you read on-line (e.g., washingtonpost.com) as on-line sources."''',
-    "options": ["On-line sources only", "Mostly on-line sources with some television and print news", "About half on-line sources", "Mostly television or print news with some on-line sources", "Television or print news only"],
+    To show that you’ve read this much, please select “Television or print news only” as your answer.''',
+    "options": [
+        "On-line sources only",
+        "Mostly on-line sources with some television and print news",
+        "About half on-line sources",
+        "Mostly television or print news with some on-line sources",
+        "Television or print news only"
+    ],
     "correct": "Television or print news only"
 }
 
@@ -93,9 +97,12 @@ if not prolific_id:
 if "prolific_id" not in st.session_state:
     st.session_state.prolific_id = prolific_id
 
-if check_prolific_id_exists(sheet, prolific_id):
-    st.error("This Prolific ID has already completed the study. You cannot participate again.")
-    st.stop()
+# Check PID only at the start
+if "pid_checked" not in st.session_state:
+    st.session_state.pid_checked = True
+    if check_prolific_id_exists(sheet, prolific_id):
+        st.error("This Prolific ID has already completed the study. You cannot participate again.")
+        st.stop()
 
 # ============================================================================
 # SESSION STATE DEFAULTS
@@ -106,6 +113,7 @@ DEFAULTS = {
     "greeting_sent": False,
     "conversation_ended": False,
     "data_saved": False,
+    "generate_assistant": False
 }
 for k, v in DEFAULTS.items():
     if k not in st.session_state:
@@ -208,11 +216,11 @@ elif st.session_state.phase == 3:
 elif st.session_state.phase == 4:
     prompt_data = PROMPTS[st.session_state.prompt_key]
     norm_data = NORMS[st.session_state.norm_key]
-
     system_prompt = prompt_data["system_prompt_template"].replace(
         "{NORM_DESCRIPTION}", norm_data["title"]
     )
 
+    # Initial greeting
     if not st.session_state.greeting_sent:
         reply = openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
@@ -227,35 +235,48 @@ elif st.session_state.phase == 4:
             "timestamp": datetime.now().isoformat()
         })
         st.session_state.greeting_sent = True
+        st.rerun()
 
+    # Display all messages
     for m in st.session_state.messages:
         with st.chat_message(m["role"]):
             st.markdown(m["content"])
 
+    # Count conversation rounds
     assistant_msgs = [m for m in st.session_state.messages if m["role"] == "assistant"]
     round_count = max(0, len(assistant_msgs) - 1)
 
+    # Enforce max 10 rounds
     if round_count >= 10:
         st.session_state.phase = 5
         st.rerun()
 
-    if user_input := st.chat_input("Type your response here"):
-        st.session_state.messages.append({
-            "role": "user",
-            "content": user_input,
-            "timestamp": datetime.now().isoformat()
-        })
+    # Show chat input only if conversation not ended
+    if not st.session_state.conversation_ended:
+        if user_input := st.chat_input("Type your response here"):
+            # Append and display user message first
+            st.session_state.messages.append({
+                "role": "user",
+                "content": user_input,
+                "timestamp": datetime.now().isoformat()
+            })
+            with st.chat_message("user"):
+                st.markdown(user_input)
 
-        # Stream assistant response after user input
-        with st.chat_message("assistant"):
-            stream = openai_client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "system", "content": system_prompt}] +
-                         [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages],
-                stream=True
-            )
-            reply_text = st.write_stream(stream)
+            # Flag to generate assistant reply in next rerun
+            st.session_state.generate_assistant = True
+            st.rerun()
 
+    # Generate assistant reply
+    if st.session_state.generate_assistant:
+        st.session_state.generate_assistant = False
+        stream = openai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "system", "content": system_prompt}] +
+                     [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages],
+            stream=True
+        )
+        reply_text = st.write_stream(stream)
         st.session_state.messages.append({
             "role": "assistant",
             "content": reply_text,
@@ -263,8 +284,10 @@ elif st.session_state.phase == 4:
         })
         st.rerun()
 
+    # Show "End Discussion" after 3 rounds
     if round_count >= 3:
         if st.button("End Discussion"):
+            st.session_state.conversation_ended = True
             st.session_state.phase = 5
             st.rerun()
 
@@ -306,6 +329,7 @@ elif st.session_state.phase == 5 and not st.session_state.data_saved:
 
         save_to_google_sheets(sheet, row)
         st.session_state.data_saved = True
+        st.session_state.phase = 6
         st.rerun()
 
 # ============================================================================
@@ -321,8 +345,7 @@ else:
     """)
 
     prolific_id = st.session_state.get("prolific_id", "")
-    # Safe placeholder for testing; replace with your real Prolific completion code
-    completion_base_url = "https://www.prolific.co/"  
+    completion_base_url = "https://www.prolific.co/"  # replace with your real URL
     completion_url = f"{completion_base_url}?PROLIFIC_PID={prolific_id}"
 
     st.markdown(f"[Return to Prolific]({completion_url})", unsafe_allow_html=True)
@@ -339,6 +362,3 @@ else:
             """,
             height=0
         )
-
-
-
