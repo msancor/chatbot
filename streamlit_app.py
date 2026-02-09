@@ -319,6 +319,7 @@ elif st.session_state.phase == 5 and not st.session_state.data_saved:
             st.session_state.comp_response,
             st.session_state.comp_correct,
             st.session_state.comp_response_time,
+            st.session_state.engagement_text,
             st.session_state.engagement_word_count,
             st.session_state.engagement_response_time,
             len([m for m in st.session_state.messages if m["role"] == "user"]),
@@ -332,38 +333,35 @@ elif st.session_state.phase == 5 and not st.session_state.data_saved:
         st.session_state.phase = 6
         st.rerun()
 
-# Phase 6 — Thank you & Auto-Redirect
+# ============================================================================
+# PHASE 6 — THANK YOU & PROLIFIC REDIRECT
+# ============================================================================
 if st.session_state.phase >= 6:
     st.markdown("## Thank you for your participation")
     st.markdown("""
     Your responses have been successfully recorded.
-    
+
     You will be redirected to Prolific automatically in a few seconds.
-    If the redirect does not happen, please click the button below.
+    If the redirect does not happen, please click the link below.
     """)
 
-    prolific_id = st.session_state.get("prolific_id", "")
-    # Safe placeholder for testing; replace with your real Prolific completion code
-    completion_base_url = "https://www.prolific.co/"
-    completion_url = f"{completion_base_url}?PROLIFIC_PID={prolific_id}"
+    # Replace with your actual Prolific completion code
+    completion_url = "https://www.prolific.co/submissions/complete?cc=XXXX"
 
-    st.markdown(f"[Return to Prolific immediately]({completion_url})", unsafe_allow_html=True)
-
-    # Only inject JS once
+    # Only trigger redirect once per session
     if "redirect_triggered" not in st.session_state:
         st.session_state.redirect_triggered = True
-        st.components.v1.html(f"""
-        <html>
-        <head>
+        # Inject JavaScript to redirect the entire browser tab
+        st.markdown(f"""
         <script type="text/javascript">
-            // Wait 5 seconds, then redirect
-            setTimeout(function() {{
-                window.location.href = "{completion_url}";
-            }}, 5000);
+            window.onload = function() {{
+                // Redirect after 3 seconds
+                setTimeout(function() {{
+                    window.location.href = "{completion_url}";
+                }}, 3000);
+            }};
         </script>
-        </head>
-        <body>
-        <p>Redirecting you automatically…</p>
-        </body>
-        </html>
-        """, height=100)
+        """, unsafe_allow_html=True)
+
+    # Always include a fallback clickable link
+    st.markdown(f"If you are not redirected automatically, <a href='{completion_url}' target='_blank'>click here to return to Prolific</a>.", unsafe_allow_html=True)
