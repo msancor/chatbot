@@ -284,8 +284,8 @@ elif st.session_state.phase == 4:
         })
         st.rerun()
 
-    # Show "End Discussion" after 3 rounds
-    if round_count >= 3:
+    # Show "End Discussion" after 2 rounds
+    if round_count >= 2:
         if st.button("End Discussion"):
             st.session_state.conversation_ended = True
             st.session_state.phase = 5
@@ -332,33 +332,38 @@ elif st.session_state.phase == 5 and not st.session_state.data_saved:
         st.session_state.phase = 6
         st.rerun()
 
-# ============================================================================
-# PHASE 6 — THANK YOU & AUTO-REDIRECT
-# ============================================================================
-else:
+# Phase 6 — Thank you & Auto-Redirect
+if st.session_state.phase >= 6:
     st.markdown("## Thank you for your participation")
     st.markdown("""
     Your responses have been successfully recorded.
-
+    
     You will be redirected to Prolific automatically in a few seconds.
     If the redirect does not happen, please click the button below.
     """)
 
     prolific_id = st.session_state.get("prolific_id", "")
-    completion_base_url = "https://www.prolific.co/"  # replace with your real URL
+    # Safe placeholder for testing; replace with your real Prolific completion code
+    completion_base_url = "https://www.prolific.co/"
     completion_url = f"{completion_base_url}?PROLIFIC_PID={prolific_id}"
 
-    st.markdown(f"[Return to Prolific]({completion_url})", unsafe_allow_html=True)
+    st.markdown(f"[Return to Prolific immediately]({completion_url})", unsafe_allow_html=True)
 
+    # Only inject JS once
     if "redirect_triggered" not in st.session_state:
         st.session_state.redirect_triggered = True
-        st.components.v1.html(
-            f"""
-            <script>
-                setTimeout(function() {{
-                    window.location.href = "{completion_url}";
-                }}, 5000);
-            </script>
-            """,
-            height=0
-        )
+        st.components.v1.html(f"""
+        <html>
+        <head>
+        <script type="text/javascript">
+            // Wait 5 seconds, then redirect
+            setTimeout(function() {{
+                window.location.href = "{completion_url}";
+            }}, 5000);
+        </script>
+        </head>
+        <body>
+        <p>Redirecting you automatically…</p>
+        </body>
+        </html>
+        """, height=100)
