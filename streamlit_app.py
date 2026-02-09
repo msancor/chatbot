@@ -264,7 +264,7 @@ elif st.session_state.phase == 4:
         st.session_state.pending_user_message = None
 
         # Generate assistant response only if < 10 rounds
-        if round_count < 10:
+        if round_count < 4:
             with st.chat_message("assistant"):
                 stream = openai_client.chat.completions.create(
                     model="gpt-3.5-turbo",
@@ -295,7 +295,7 @@ elif st.session_state.phase == 4:
             st.rerun()
 
     # Show "End Discussion" button after 3 rounds (before 10 rounds)
-    if round_count >= 3 and round_count < 10 and st.session_state.phase == 4:
+    if round_count >= 3 and round_count < 4 and st.session_state.phase == 4:
         if st.button("End Discussion"):
             st.session_state.phase = 5
             st.rerun()
