@@ -234,6 +234,7 @@ elif st.session_state.phase == 4:
             "timestamp": datetime.now().isoformat()
         })
         st.session_state.greeting_sent = True
+        st.rerun()  # rerun to display the greeting
 
     # Display all messages
     for m in st.session_state.messages:
@@ -243,16 +244,29 @@ elif st.session_state.phase == 4:
     assistant_msgs = [m for m in st.session_state.messages if m["role"] == "assistant"]
     round_count = max(0, len(assistant_msgs) - 1)  # exclude greeting
 
-    # Show chat input only if conversation hasn't reached 10 rounds
-    if round_count < 4:
-        if user_input := st.chat_input("Type your response here"):
-            st.session_state.messages.append({
-                "role": "user",
-                "content": user_input,
-                "timestamp": datetime.now().isoformat()
-            })
+    # Track if we need to generate a response after user input
+    if "pending_user_message" not in st.session_state:
+        st.session_state.pending_user_message = None
 
-            # Stream assistant response after user input
+    # Capture new user input
+    if user_input := st.chat_input("Type your response here"):
+        st.session_state.pending_user_message = {
+            "role": "user",
+            "content": user_input,
+            "timestamp": datetime.now().isoformat()
+        }
+        st.rerun()  # rerun to display user message first
+
+    # If there is a pending user message, display it first
+    if st.session_state.pending_user_message:
+        user_msg = st.session_state.pending_user_message
+        st.session_state.messages.append(user_msg)
+        with st.chat_message("user"):
+            st.markdown(user_msg["content"])
+        st.session_state.pending_user_message = None
+
+        # Now generate assistant response AFTER user message has rendered
+        if round_count < 10:
             with st.chat_message("assistant"):
                 stream = openai_client.chat.completions.create(
                     model="gpt-3.5-turbo",
@@ -267,18 +281,18 @@ elif st.session_state.phase == 4:
                 "content": reply_text,
                 "timestamp": datetime.now().isoformat()
             })
-            st.rerun()
 
-    # Automatic final assistant message when 10 rounds reached
-    elif round_count == 4 and not st.session_state.conversation_ended:
-        final_message = "Thank you for your thoughtful responses! The discussion is now complete."
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": final_message,
-            "timestamp": datetime.now().isoformat()
-        })
-        st.session_state.conversation_ended = True
-        st.rerun()
+            st.rerun()  # rerun to display the assistant message
+        else:
+            # Maximum 10 rounds reached, send final assistant message
+            final_message = "Thank you for your thoughtful responses! The discussion is now complete."
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": final_message,
+                "timestamp": datetime.now().isoformat()
+            })
+            st.session_state.conversation_ended = True
+            st.rerun()
 
     # Show "End Discussion" button after 3 rounds
     if round_count >= 3 and not st.session_state.conversation_ended:
