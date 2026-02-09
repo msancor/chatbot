@@ -337,17 +337,17 @@ elif st.session_state.phase == 5 and not st.session_state.data_saved:
 # PHASE 6 — THANK YOU & PROLIFIC REDIRECT
 # ============================================================================
 if st.session_state.phase >= 6:
+
+    st.markdown("## Thank you for your participation")
+    st.markdown("""
+    Your responses have been successfully recorded.
+
+    The link below will redirect you immediately to Prolific:""")
+
     # Replace with your actual Prolific completion code
     prolific_id = st.session_state.get("prolific_id", "")
     # Safe placeholder for testing; replace with your real Prolific completion code
     completion_base_url = "https://www.prolific.co/"
     completion_url = f"{completion_base_url}?PROLIFIC_PID={prolific_id}"
 
-    st.markdown("## Thank you for your participation")
-    st.markdown("""
-    Your responses have been successfully recorded.
-
-    The link below will redirect you immediately to Prolific:
-                
-    <a href='{completion_url}' target='_blank'>Click here to return to Prolific and complete the study</a>.""", unsafe_allow_html=True)
-
+    st.markdown(f"[Return to Prolific immediately]({completion_url})", unsafe_allow_html=True)
