@@ -337,31 +337,17 @@ elif st.session_state.phase == 5 and not st.session_state.data_saved:
 # PHASE 6 — THANK YOU & PROLIFIC REDIRECT
 # ============================================================================
 if st.session_state.phase >= 6:
+    # Replace with your actual Prolific completion code
+    prolific_id = st.session_state.get("prolific_id", "")
+    # Safe placeholder for testing; replace with your real Prolific completion code
+    completion_base_url = "https://www.prolific.co/"
+    completion_url = f"{completion_base_url}?PROLIFIC_PID={prolific_id}"
+
     st.markdown("## Thank you for your participation")
     st.markdown("""
     Your responses have been successfully recorded.
 
-    You will be redirected to Prolific automatically in a few seconds.
-    If the redirect does not happen, please click the link below.
-    """)
+    The link below will redirect you immediately to Prolific:
+                
+    <a href='{completion_url}' target='_blank'>Click here to return to Prolific and complete the study</a>.""", unsafe_allow_html=True)
 
-    # Replace with your actual Prolific completion code
-    completion_url = "https://www.prolific.co/submissions/complete?cc=XXXX"
-
-    # Only trigger redirect once per session
-    if "redirect_triggered" not in st.session_state:
-        st.session_state.redirect_triggered = True
-        # Inject JavaScript to redirect the entire browser tab
-        st.markdown(f"""
-        <script type="text/javascript">
-            window.onload = function() {{
-                // Redirect after 3 seconds
-                setTimeout(function() {{
-                    window.location.href = "{completion_url}";
-                }}, 3000);
-            }};
-        </script>
-        """, unsafe_allow_html=True)
-
-    # Always include a fallback clickable link
-    st.markdown(f"If you are not redirected automatically, <a href='{completion_url}' target='_blank'>click here to return to Prolific</a>.", unsafe_allow_html=True)
