@@ -210,17 +210,16 @@ elif st.session_state.phase == 3:
         st.session_state.phase = 4
         st.rerun()
 
-# ============================================================================
 # PHASE 4 — CONVERSATION
-# ============================================================================
 elif st.session_state.phase == 4:
     prompt_data = PROMPTS[st.session_state.prompt_key]
     norm_data = NORMS[st.session_state.norm_key]
+
     system_prompt = prompt_data["system_prompt_template"].replace(
         "{NORM_DESCRIPTION}", norm_data["title"]
     )
 
-    # Initial greeting
+    # Send initial greeting if not already sent
     if not st.session_state.greeting_sent:
         reply = openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
@@ -235,61 +234,58 @@ elif st.session_state.phase == 4:
             "timestamp": datetime.now().isoformat()
         })
         st.session_state.greeting_sent = True
-        st.rerun()
 
     # Display all messages
     for m in st.session_state.messages:
         with st.chat_message(m["role"]):
             st.markdown(m["content"])
 
-    # Count conversation rounds
     assistant_msgs = [m for m in st.session_state.messages if m["role"] == "assistant"]
-    round_count = max(0, len(assistant_msgs) - 1)
+    round_count = max(0, len(assistant_msgs) - 1)  # exclude greeting
 
-    # Enforce max 10 rounds
-    if round_count >= 10:
-        st.session_state.phase = 5
-        st.rerun()
-
-    # Show chat input only if conversation not ended
-    if not st.session_state.conversation_ended:
+    # Show chat input only if conversation hasn't reached 10 rounds
+    if round_count < 4:
         if user_input := st.chat_input("Type your response here"):
-            # Append and display user message first
             st.session_state.messages.append({
                 "role": "user",
                 "content": user_input,
                 "timestamp": datetime.now().isoformat()
             })
-            with st.chat_message("user"):
-                st.markdown(user_input)
 
-            # Flag to generate assistant reply in next rerun
-            st.session_state.generate_assistant = True
+            # Stream assistant response after user input
+            with st.chat_message("assistant"):
+                stream = openai_client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[{"role": "system", "content": system_prompt}] +
+                             [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages],
+                    stream=True
+                )
+                reply_text = st.write_stream(stream)
+
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": reply_text,
+                "timestamp": datetime.now().isoformat()
+            })
             st.rerun()
 
-    # Generate assistant reply
-    if st.session_state.generate_assistant:
-        st.session_state.generate_assistant = False
-        stream = openai_client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "system", "content": system_prompt}] +
-                     [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages],
-            stream=True
-        )
-        reply_text = st.write_stream(stream)
+    # Automatic final assistant message when 10 rounds reached
+    elif round_count == 4 and not st.session_state.conversation_ended:
+        final_message = "Thank you for your thoughtful responses! The discussion is now complete."
         st.session_state.messages.append({
             "role": "assistant",
-            "content": reply_text,
+            "content": final_message,
             "timestamp": datetime.now().isoformat()
         })
+        st.session_state.conversation_ended = True
         st.rerun()
 
-    # Show "End Discussion" after 2 rounds
-    if round_count >= 2:
+    # Show "End Discussion" button after 3 rounds
+    if round_count >= 3 and not st.session_state.conversation_ended:
         if st.button("End Discussion"):
             st.session_state.conversation_ended = True
-            st.session_state.phase = 5
             st.rerun()
+
 
 # ============================================================================
 # PHASE 5 — FINAL OPINION & SAVE
