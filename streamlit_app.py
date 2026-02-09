@@ -295,7 +295,7 @@ elif st.session_state.phase == 4:
             st.rerun()
 
     # Show "End Discussion" button after 3 rounds (before 10 rounds)
-    if round_count >= 3 and round_count < 4 and st.session_state.phase == 4:
+    if round_count >= 3 and round_count <= 4 and st.session_state.phase == 4:
         if st.button("End Discussion"):
             st.session_state.phase = 5
             st.rerun()
