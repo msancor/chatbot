@@ -198,15 +198,30 @@ elif st.session_state.phase == 3:
     norm_data = NORMS[st.session_state.norm_key]
 
     st.markdown("## Your Initial Opinion")
-    st.markdown("Before the discussion begins, please indicate your view.")
-
-    opinion = st.slider(
-        norm_data["title"],
-        1, 100, 50
+    st.markdown(
+        "We ask you to indicate how appropriate you consider this behavior, "
+        "where 0 means very inappropriate and 100 means highly appropriate."
     )
 
-    if st.button("Start Discussion"):
-        st.session_state.initial_opinion = opinion
+    # Initialize session_state for opinion if it doesn't exist
+    if "initial_opinion" not in st.session_state:
+        st.session_state.initial_opinion = None
+
+    # Display slider with default 0 but we interpret None if user hasn't touched
+    opinion = st.slider(
+        norm_data["title"],
+        0, 100,
+        value=0,
+        key="slider_temp"
+    )
+
+    # Only register opinion if the user moves the slider (slider_temp != 0)
+    if st.session_state.slider_temp != 0:
+        st.session_state.initial_opinion = st.session_state.slider_temp
+
+    # Disable "Start Discussion" button until slider touched
+    start_disabled = st.session_state.initial_opinion is None
+    if st.button("Start Discussion", disabled=start_disabled):
         st.session_state.phase = 4
         st.rerun()
 
