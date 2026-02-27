@@ -196,14 +196,23 @@ elif st.session_state.phase == 3:
         st.session_state.start_time = time.time()
 
     norm_data = NORMS[st.session_state.norm_key]
+    #We take out this norm from the original norm dictionary
+    new_norms = {k: v for k, v in NORMS.items() if k != st.session_state.norm_key}
+    #We sample three random norms from the remaining norms. The result is a json with three norms
+    sampled_norms = random.sample(list(new_norms.values()), 2)
+    #We add the original norm back to the sampled norms
+    sampled_norms.append(norm_data["title"])
+    #We shuffle the norms so that the original norm is not always in the same position
+    random.shuffle(sampled_norms)
 
     st.markdown("## Your Initial Opinion")
-    st.markdown("We ask you to indicate how appropriate you consider this behavior, where 0 means very inappropriate and 100 means highly appropriate.")
+    for norm in sampled_norms:
+        st.markdown("We ask you to indicate how appropriate you consider this behavior, where 0 means very inappropriate and 100 means highly appropriate.")
 
-    opinion = st.slider(
-        norm_data["title"],
-        0, 100, 50
-    )
+        opinion = st.slider(
+            norm,
+            0, 100, 50
+        )
 
     if st.button("Start Discussion"):
         st.session_state.initial_opinion = opinion
