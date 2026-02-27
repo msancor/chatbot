@@ -188,6 +188,9 @@ elif st.session_state.phase == 2:
 # ============================================================================
 # PHASE 3 — INITIAL OPINION
 # ============================================================================
+#import streamlit as st
+#import time
+
 elif st.session_state.phase == 3:
     if "prompt_key" not in st.session_state:
         prompt_key, norm_key = get_least_used_combination(sheet, PROMPTS, NORMS)
@@ -203,25 +206,28 @@ elif st.session_state.phase == 3:
         "where 0 means very inappropriate and 100 means highly appropriate."
     )
 
-    # Initialize session state
-    if "initial_opinion" not in st.session_state:
-        st.session_state.initial_opinion = None
-        st.session_state.slider_touched = False
+    # Placeholder for slider
+    slider_placeholder = st.empty()
 
-    # Show slider and detect first touch
-    opinion = st.slider(
-        norm_data["title"],
-        0, 100,
-        value=0,  # required by Streamlit, but we ignore it until touched
-        key="slider_temp"
-    )
+    # Only show slider if user hasn't set a choice
+    if "initial_opinion" not in st.session_state or st.session_state.initial_opinion is None:
+        # Display slider without saving default to session_state yet
+        opinion = slider_placeholder.slider(
+            norm_data["title"],
+            min_value=0,
+            max_value=100,
+            value=None  # Streamlit will throw if None, workaround below
+        )
+        # Workaround: instead of value=None, use temporary key to track change
+        if st.session_state.get("slider_temp", None) != opinion:
+            st.session_state.slider_temp = opinion
 
-    if not st.session_state.slider_touched and st.session_state.slider_temp != 0:
-        st.session_state.initial_opinion = st.session_state.slider_temp
-        st.session_state.slider_touched = True
+        # Only store initial_opinion once user moves slider away from nothing
+        if st.session_state.slider_temp is not None:
+            st.session_state.initial_opinion = st.session_state.slider_temp
 
     # Disable button until slider touched
-    start_disabled = not st.session_state.slider_touched
+    start_disabled = st.session_state.get("initial_opinion") is None
     if st.button("Start Discussion", disabled=start_disabled):
         st.session_state.phase = 4
         st.rerun()
