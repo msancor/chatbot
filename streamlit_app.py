@@ -211,7 +211,35 @@ elif st.session_state.phase == 3:
         st.markdown(
             f"**{norm['title']}**\nWe ask you to indicate how appropriate you consider this behavior, where 0 means very inappropriate and 100 means highly appropriate."
         )
-        # Unique key for each slider
+        # Unique key elif st.session_state.phase == 3:
+    if "prompt_key" not in st.session_state:
+        prompt_key, norm_key = get_least_used_combination(sheet, PROMPTS, NORMS)
+        st.session_state.prompt_key = prompt_key
+        st.session_state.norm_key = norm_key
+        st.session_state.start_time = time.time()
+
+    # Store sampled & shuffled norms only once
+    if "sampled_norms" not in st.session_state:
+        norm_data = NORMS[st.session_state.norm_key]
+
+        # Remove current norm and sample 2 more
+        new_norms = {k: v for k, v in NORMS.items() if k != st.session_state.norm_key}
+        sampled_norms = random.sample(list(new_norms.values()), 2)
+        sampled_norms.append(norm_data)  # append the original norm object
+        random.shuffle(sampled_norms)
+
+        st.session_state.sampled_norms = sampled_norms
+    else:
+        sampled_norms = st.session_state.sampled_norms
+
+    st.markdown("## Your Initial Opinion")
+    opinions = {}
+
+    # Loop over stored sampled norms
+    for i, norm in enumerate(sampled_norms):
+        st.markdown(
+            f"**{norm['title']}**\nWe ask you to indicate how appropriate you consider this behavior, where 0 means very inappropriate and 100 means highly appropriate."
+        )
         opinions[norm['title']] = st.slider(
             norm['title'],
             0, 100, 50,
@@ -221,7 +249,7 @@ elif st.session_state.phase == 3:
     if st.button("Start Discussion"):
         st.session_state.initial_opinion = opinions
         st.session_state.phase = 4
-        st.rerun()
+        st.rerun() 
 
 # PHASE 4 — CONVERSATION
 elif st.session_state.phase == 4:
