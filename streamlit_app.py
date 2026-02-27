@@ -198,18 +198,33 @@ elif st.session_state.phase == 3:
     norm_data = NORMS[st.session_state.norm_key]
 
     st.markdown("## Your Initial Opinion")
-    st.markdown("We ask you to indicate how appropriate you consider this behavior, where 0 means very inappropriate and 100 means highly appropriate.")
-
-    opinion = st.slider(
-        norm_data["title"],
-        0, 100, 50
+    st.markdown(
+        "We ask you to indicate how appropriate you consider this behavior, "
+        "where 0 means very inappropriate and 100 means highly appropriate."
     )
 
-    if st.button("Start Discussion"):
+    # Initialize session state
+    if "initial_opinion" not in st.session_state:
+        st.session_state.initial_opinion = None
+
+    # Use select_slider for uninitialized slider
+    opinion = st.select_slider(
+        norm_data["title"],
+        options=list(range(0, 101)),  # 0 to 100
+        value=None,                   # starts blank
+        key="opinion_slider"
+    )
+
+    # Only store value once user selects
+    if opinion is not None:
         st.session_state.initial_opinion = opinion
+
+    # Disable button until user selects a value
+    start_disabled = st.session_state.initial_opinion is None
+    if st.button("Start Discussion", disabled=start_disabled):
         st.session_state.phase = 4
         st.rerun()
-
+        
 # PHASE 4 — CONVERSATION
 elif st.session_state.phase == 4:
     prompt_data = PROMPTS[st.session_state.prompt_key]
