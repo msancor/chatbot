@@ -203,24 +203,25 @@ elif st.session_state.phase == 3:
         "where 0 means very inappropriate and 100 means highly appropriate."
     )
 
-    # Initialize session_state for opinion if it doesn't exist
+    # Initialize session state
     if "initial_opinion" not in st.session_state:
         st.session_state.initial_opinion = None
+        st.session_state.slider_touched = False
 
-    # Display slider with default 0 but we interpret None if user hasn't touched
+    # Show slider and detect first touch
     opinion = st.slider(
         norm_data["title"],
         0, 100,
-        value=0,
+        value=0,  # required by Streamlit, but we ignore it until touched
         key="slider_temp"
     )
 
-    # Only register opinion if the user moves the slider (slider_temp != 0)
-    if st.session_state.slider_temp != 0:
+    if not st.session_state.slider_touched and st.session_state.slider_temp != 0:
         st.session_state.initial_opinion = st.session_state.slider_temp
+        st.session_state.slider_touched = True
 
-    # Disable "Start Discussion" button until slider touched
-    start_disabled = st.session_state.initial_opinion is None
+    # Disable button until slider touched
+    start_disabled = not st.session_state.slider_touched
     if st.button("Start Discussion", disabled=start_disabled):
         st.session_state.phase = 4
         st.rerun()
