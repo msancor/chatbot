@@ -118,13 +118,6 @@ DEFAULTS = {
     "comp_correct": None,
     "engagement_text": "",
     "engagement_word_count": 0,
-    # Timing variables
-    "page_load_time": None,
-    "comp_start_time_seq": None,
-    "comp_first_interaction": None,
-    "engagement_start_time_seq": None,
-    "engagement_first_interaction": None,
-
 }
 
 def init_state(key, default):
