@@ -150,6 +150,9 @@ if st.session_state.phase == 0:
 # PHASE 1 — COMPREHENSION + BACKGROUND (SAME PAGE, 3 TIMERS)
 # ============================================================================
 elif st.session_state.phase == 1:
+    st.write("PHASE", st.session_state.phase)
+    st.write("comp_response:", st.session_state.get("comp_response"))
+    st.write("engagement_text:", st.session_state.get("engagement_text"))
 
     # =========================
     # INITIALIZE TIMERS
@@ -195,7 +198,6 @@ elif st.session_state.phase == 1:
         on_change=comp_interaction_callback,
         label_visibility="collapsed"
     )
-    st.write("After radio:", st.session_state.get("comp_response"))
 
 
     # =========================
@@ -217,7 +219,6 @@ elif st.session_state.phase == 1:
             on_change=lambda: st.session_state.update({"engagement_first_interaction": time.time()}),
             label_visibility="collapsed"
         )
-        st.write("After text_area:", st.session_state.get("engagement_text"))
 
     else:
         st.info("Please answer the first question to continue.")
@@ -291,6 +292,9 @@ elif st.session_state.phase == 1:
 # PHASE 3 — INITIAL OPINION
 # ============================================================================
 elif st.session_state.phase == 2:
+    st.write("PHASE", st.session_state.phase)
+    st.write("comp_response:", st.session_state.get("comp_response"))
+    st.write("engagement_text:", st.session_state.get("engagement_text"))
     if "prompt_key" not in st.session_state:
         prompt_key, norm_key = get_least_used_combination(sheet, PROMPTS, NORMS)
         st.session_state.prompt_key = prompt_key
@@ -330,6 +334,9 @@ elif st.session_state.phase == 2:
 
 # PHASE 4 — CONVERSATION
 elif st.session_state.phase == 3:
+    st.write("PHASE", st.session_state.phase)
+    st.write("comp_response:", st.session_state.get("comp_response"))
+    st.write("engagement_text:", st.session_state.get("engagement_text"))       
     prompt_data = PROMPTS[st.session_state.prompt_key]
     norm_data = NORMS[st.session_state.norm_key]
     system_prompt = prompt_data["system_prompt_template"].replace(
@@ -423,6 +430,9 @@ elif st.session_state.phase == 3:
 # PHASE 5 — FINAL OPINION & SAVE
 # ============================================================================
 elif st.session_state.phase == 4 and not st.session_state.data_saved:
+    st.write("PHASE", st.session_state.phase)
+    st.write("comp_response:", st.session_state.get("comp_response"))
+    st.write("engagement_text:", st.session_state.get("engagement_text"))
 
     st.markdown("## Final Opinion")
     st.markdown("After the discussion, how appropriate do you consider this behaviors? You can adjust the sliders to reflect any change in your opinion after the discussion, where 0 means very inappropriate and 100 means highly appropriate.")
