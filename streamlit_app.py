@@ -329,13 +329,34 @@ elif st.session_state.phase == 2:
             key=f"slider_{i}",
         )
 
-    if st.button("Start Discussion"):
+    if st.button("Continue"):
         st.session_state.initial_opinion = opinions
         st.session_state.phase = 3
         st.rerun() 
 
-# PHASE 4 — CONVERSATION
+#PHASE 3 - GROUP OPINION
 elif st.session_state.phase == 3:  
+    st.markdown("## How do you rate others’ opinion?")
+    st.markdown("We ask you to indicate what do you think the other participants of this study have on average reported as an answer to the appropiateness of the following behaviors, where 0 means very inappropriate and 100 means highly appropriate.\nWe will calculate the responses provided by the other participants and compare them with the estimate you provided. If your estimate is correct, you will receive an additional bonus of £1/£0.50.")
+    sampled_norms = st.session_state.sampled_norms
+    opinions_others = {}
+    for i, norm in enumerate(sampled_norms):
+        opinions_others[norm['title']] = st.slider(
+            f"**{norm['title']}**",
+            0, 100, 50,
+            key=f"group_opinion_slider_{i}",
+        )
+
+    st.markdown("---")
+    st.markdown('''Next, you will participate in a conversation with an advanced AI about some of the topics and opinions that you have already answered questions about earlier. The purpose of this dialogue is to see how humans and AI interact. Please be open and honest in your responses. Remember that the AI is neutral and non-judgmental, and your participation is confidential. When the conversation begins, you should see an AI icon with chat bubbles "..." indicating it's generating responses. It can sometimes take up to 30s. If you don't see any icons or if it's taking too long to generate responses, try refreshing the page. If you run into further issues, please let us know.\n Please read each AI message thoroughly, as you may have to scroll down to read its full message. You will be asked some questions about your interaction.\n After a minimum of 3 conversational rounds you can exit the conversation and proceed to the next section. You can have a maximum of 10 rounds of conversation.''')
+    if st.button("Start Conversation"):
+        st.session_state.opinions_others = opinions_others
+        st.session_state.phase = 4  # move to conversation phase
+        st.rerun()
+
+
+# PHASE 4 — CONVERSATION
+elif st.session_state.phase == 4:  
     prompt_data = PROMPTS[st.session_state.prompt_key]
     norm_data = NORMS[st.session_state.norm_key]
     system_prompt = prompt_data["system_prompt_template"].replace(
@@ -419,9 +440,9 @@ elif st.session_state.phase == 3:
             st.rerun()
 
     # Show "End Discussion" button after 3 rounds (before 10 rounds)
-    if round_count >= 3 and st.session_state.phase == 3:
+    if round_count >= 3 and st.session_state.phase == 4:
         if st.button("End Discussion"):
-            st.session_state.phase = 4
+            st.session_state.phase = 5
             st.rerun()
 
 
@@ -431,7 +452,7 @@ elif st.session_state.phase == 3:
 elif st.session_state.phase == 4 and not st.session_state.data_saved:
 
     st.markdown("## Final Opinion")
-    st.markdown("After the discussion, how appropriate do you consider this behaviors? You can adjust the sliders to reflect any change in your opinion after the discussion, where 0 means very inappropriate and 100 means highly appropriate.")
+    st.markdown("After the discussion, how appropriate do you consider this behaviors are? You can adjust the sliders to reflect any change in your opinion after the discussion, where 0 means very inappropriate and 100 means highly appropriate.")
 
     sampled_norms = st.session_state.sampled_norms
     initial_opinions = st.session_state.initial_opinion
