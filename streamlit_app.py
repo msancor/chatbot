@@ -117,11 +117,7 @@ if "session_initialized" not in st.session_state:
         "greeting_sent": False,
         "conversation_ended": False,
         "data_saved": False,
-        "generate_assistant": False,
-        "comp_response": None,
-        "comp_correct": None,
-        "engagement_text": "",
-        "engagement_word_count": 0,
+        "generate_assistant": False
     }
     for k, v in DEFAULTS.items():
         st.session_state[k] = v
@@ -303,49 +299,45 @@ elif st.session_state.phase == 1:
 # PHASE 3 — INITIAL OPINION
 # ============================================================================
 elif st.session_state.phase == 2:
-    # Ensure Phase 1 values exist
-    comp_response = str(st.session_state.get("comp_response", "")).strip()
-    engagement_text = str(st.session_state.get("engagement_text", "")).strip()
-
-    # Sample prompts & norms
+    st.write("PHASE", st.session_state.phase)
+    st.write("comp_response:", st.session_state.get("comp_response"))
+    st.write("engagement_text:", st.session_state.get("engagement_text"))
     if "prompt_key" not in st.session_state:
         prompt_key, norm_key = get_least_used_combination(sheet, PROMPTS, NORMS)
         st.session_state.prompt_key = prompt_key
         st.session_state.norm_key = norm_key
         st.session_state.start_time = time.time()
 
-    # Store sampled norms only once
+    # Store sampled & shuffled norms only once
     if "sampled_norms" not in st.session_state:
         norm_data = NORMS[st.session_state.norm_key]
+
+        # Remove current norm and sample 2 more
         new_norms = {k: v for k, v in NORMS.items() if k != st.session_state.norm_key}
         sampled_norms = random.sample(list(new_norms.values()), 2)
-        sampled_norms.append(norm_data)
+        sampled_norms.append(norm_data)  # append the original norm object
         random.shuffle(sampled_norms)
+
         st.session_state.sampled_norms = sampled_norms
     else:
         sampled_norms = st.session_state.sampled_norms
 
     st.markdown("## Your Initial Opinion")
-    st.markdown(
-        "Indicate how appropriate you consider each of the following behaviors (0 = very inappropriate, 100 = highly appropriate)."
-    )
+    st.markdown("We ask you to indicate how appropriate you consider each of the following behaviors, where 0 means very inappropriate and 100 means highly appropriate.")
+    opinions = {}
 
     # Loop over stored sampled norms
-    opinions = {}
     for i, norm in enumerate(sampled_norms):
-        title = norm['title']
-        initial_value = st.session_state.initial_opinion.get(title, 50) if "initial_opinion" in st.session_state else 50
-        opinions[title] = st.slider(
-            f"**{title}**",
-            0, 100,
-            initial_value,
+        opinions[norm['title']] = st.slider(
+            f"**{norm['title']}**",
+            0, 100, 50,
             key=f"slider_{i}",
         )
 
     if st.button("Start Discussion"):
         st.session_state.initial_opinion = opinions
         st.session_state.phase = 3
-        st.rerun()
+        st.rerun() 
 
 # PHASE 4 — CONVERSATION
 elif st.session_state.phase == 3:
