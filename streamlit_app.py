@@ -241,6 +241,8 @@ elif st.session_state.phase == 1:
        ## Read values directly from the widgets
         comp_response = str(st.session_state.get("comp_response", "")).strip()
         engagement_text = str(st.session_state.get("engagement_text", "")).strip()
+        st.session_state.comp_response = comp_response
+        st.session_state.engagement_text = engagement_text
 
         # Validation
         if not comp_response:
