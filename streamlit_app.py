@@ -171,9 +171,7 @@ elif st.session_state.phase == 1:
     # QUESTION 1 — COMPREHENSION
     # =========================
     st.markdown("## Background Questions")
-    st.markdown('''### In this section, you will answer two brief questions.
-                Please:
-
+    st.markdown('''In this section, you will answer two brief questions. Please:
                 - Read each question carefully.
 
                 - Select or write the response that best reflects your view.
