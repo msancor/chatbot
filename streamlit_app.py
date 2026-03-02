@@ -170,7 +170,17 @@ elif st.session_state.phase == 1:
     # =========================
     # QUESTION 1 — COMPREHENSION
     # =========================
-    st.markdown("## Quick Question")
+    st.markdown("## Background Questions")
+    st.markdown('''### In this section, you will answer two brief questions.
+                Please:
+
+                - Read each question carefully.
+
+                - Select or write the response that best reflects your view.
+
+                - Respond thoughtfully and independently.
+
+                After clicking continue, you will proceed to the next part of the study.''')
 
     def comp_interaction_callback():
         if st.session_state.comp_first_interaction is None:
