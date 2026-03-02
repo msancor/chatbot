@@ -107,27 +107,25 @@ if "pid_checked" not in st.session_state:
 # ============================================================================
 # SESSION STATE DEFAULTS
 # ============================================================================
-DEFAULTS = {
-    "phase": 0,
-    "messages": [],
-    "greeting_sent": False,
-    "conversation_ended": False,
-    "data_saved": False,
-    "generate_assistant": False,
-    "comp_response": None,
-    "comp_correct": None,
-    "engagement_text": "",
-    "engagement_word_count": 0,
-}
-
-def init_state(key, default):
-    if key not in st.session_state:
-        st.session_state[key] = default
-
-if "initialized" not in st.session_state:
+# ----------------------------
+# Session state defaults (only run once)
+# ----------------------------
+if "session_initialized" not in st.session_state:
+    DEFAULTS = {
+        "phase": 0,
+        "messages": [],
+        "greeting_sent": False,
+        "conversation_ended": False,
+        "data_saved": False,
+        "generate_assistant": False,
+        "comp_response": None,
+        "comp_correct": None,
+        "engagement_text": "",
+        "engagement_word_count": 0,
+    }
     for k, v in DEFAULTS.items():
         st.session_state[k] = v
-    st.session_state["initialized"] = True
+    st.session_state["session_initialized"] = True
 
 # ============================================================================
 # PHASE 0 — WELCOME & INSTRUCTIONS
