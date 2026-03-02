@@ -223,18 +223,18 @@ elif st.session_state.phase == 1:
     # SUBMIT BUTTON
     # =========================
     if st.button("Continue"):
-       # Explicitly capture widget values
-        comp_response = st.session_state.get("comp_response")
-        engagement_text = st.session_state.get("engagement_text", "").strip()
+       ## Read values directly from the widgets
+        comp_response = st.session_state.comp_response
+        engagement_text = st.session_state.engagement_text.strip()
 
         # Validation
-        if not comp_response or engagement_text == "":
-            st.warning("Please provide a response to all the questions before continuing.")
+        if not comp_response:
+            st.warning("Please answer the first question before continuing.")
             st.stop()
 
-        # 🔐 LOCK VALUES INTO STATE (important)
-        st.session_state.comp_response = comp_response
-        st.session_state.engagement_text = engagement_text
+        if engagement_text == "":
+            st.warning("Please provide a response to the second question before continuing.")
+            st.stop()
 
         now = time.time()
 
