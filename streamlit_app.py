@@ -212,7 +212,7 @@ elif st.session_state.phase == 1:
             "If you could change one thing about the world what would it be and why? Please elaborate in a few sentences so we can better understand your perspective.",
             height=150,
             key="engagement_text",
-            on_change=engagement_interaction_callback,
+            on_change=lambda: st.session_state.update({"engagement_first_interaction": time.time()}),
             label_visibility="collapsed"
         )
 
