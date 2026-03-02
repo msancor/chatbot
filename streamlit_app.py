@@ -115,9 +115,13 @@ DEFAULTS = {
     "data_saved": False,
     "generate_assistant": False
 }
+
+def init_state(key, default):
+    if key not in st.session_state:
+        st.session_state[key] = default
+
 for k, v in DEFAULTS.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
+    init_state(k, v)
 
 # ============================================================================
 # PHASE 0 — WELCOME & INSTRUCTIONS
@@ -139,56 +143,129 @@ if st.session_state.phase == 0:
         st.rerun()
 
 # ============================================================================
-# PHASE 1 — COMPREHENSION QUESTION
+# PHASE 1 — COMPREHENSION + BACKGROUND (SAME PAGE, 3 TIMERS)
 # ============================================================================
 elif st.session_state.phase == 1:
-    if "comp_start_time" not in st.session_state:
-        st.session_state.comp_start_time = time.time()
 
+    # =========================
+    # INITIALIZE TIMERS
+    # =========================
+    now = time.time()
+
+    if "page_load_time" not in st.session_state:
+        st.session_state.page_load_time = now  # Parallel timer baseline
+
+    if "comp_start_time_seq" not in st.session_state:
+        st.session_state.comp_start_time_seq = now  # Sequential Q1 start
+
+    if "comp_first_interaction" not in st.session_state:
+        st.session_state.comp_first_interaction = None
+
+    if "engagement_start_time_seq" not in st.session_state:
+        st.session_state.engagement_start_time_seq = None
+
+    if "engagement_first_interaction" not in st.session_state:
+        st.session_state.engagement_first_interaction = None
+
+    # =========================
+    # QUESTION 1 — COMPREHENSION
+    # =========================
     st.markdown("## Quick Question")
-    st.markdown("Before continuing, please answer the following question.")
+
+    def comp_interaction_callback():
+        if st.session_state.comp_first_interaction is None:
+            st.session_state.comp_first_interaction = time.time()
+
+        # Start Q2 sequential timer once Q1 answered
+        if st.session_state.engagement_start_time_seq is None:
+            st.session_state.engagement_start_time_seq = time.time()
 
     response = st.radio(
         COMPREHENSION_QUESTION["question"],
-        COMPREHENSION_QUESTION["options"]
+        COMPREHENSION_QUESTION["options"],
+        key="comp_response",
+        on_change=comp_interaction_callback
     )
 
+    # =========================
+    # QUESTION 2 — BACKGROUND
+    # =========================
+    if st.session_state.get("comp_response"):
+
+        st.markdown("---")
+        st.markdown("## Background Question")
+
+        def engagement_interaction_callback():
+            if st.session_state.engagement_first_interaction is None:
+                st.session_state.engagement_first_interaction = time.time()
+
+        text = st.text_area(
+            "If you could change one thing about the world what would it be and why? Please elaborate in a few sentences so we can better understand your perspective.",
+            height=150,
+            key="engagement_text",
+            on_change=engagement_interaction_callback
+        )
+
+    else:
+        st.info("Please answer the first question to continue.")
+
+    # =========================
+    # SUBMIT BUTTON
+    # =========================
     if st.button("Continue"):
-        st.session_state.comp_response = response
-        st.session_state.comp_correct = response == COMPREHENSION_QUESTION["correct"]
-        st.session_state.comp_response_time = time.time() - st.session_state.comp_start_time
+
+        now = time.time()
+
+        # -------- PARALLEL --------
+        parallel_comp_time = now - st.session_state.page_load_time
+        parallel_engagement_time = now - st.session_state.page_load_time
+
+        # -------- SEQUENTIAL --------
+        sequential_comp_time = now - st.session_state.comp_start_time_seq
+
+        sequential_engagement_time = None
+        if st.session_state.engagement_start_time_seq:
+            sequential_engagement_time = (
+                now - st.session_state.engagement_start_time_seq
+            )
+
+        # -------- INTERACTION --------
+        interaction_comp_time = None
+        if st.session_state.comp_first_interaction:
+            interaction_comp_time = (
+                now - st.session_state.comp_first_interaction
+            )
+
+        interaction_engagement_time = None
+        if st.session_state.engagement_first_interaction:
+            interaction_engagement_time = (
+                now - st.session_state.engagement_first_interaction
+            )
+
+        # Save responses
+        st.session_state.comp_correct = (
+            st.session_state.comp_response == COMPREHENSION_QUESTION["correct"]
+        )
+
+        st.session_state.engagement_word_count = len(
+            st.session_state.get("engagement_text", "").split()
+        )
+
+        # Store ALL timing variables
+        st.session_state.parallel_comp_time = parallel_comp_time
+        st.session_state.parallel_engagement_time = parallel_engagement_time
+        st.session_state.sequential_comp_time = sequential_comp_time
+        st.session_state.sequential_engagement_time = sequential_engagement_time
+        st.session_state.interaction_comp_time = interaction_comp_time
+        st.session_state.interaction_engagement_time = interaction_engagement_time
+
         st.session_state.phase = 2
-        st.rerun()
-
-# ============================================================================
-# PHASE 2 — BACKGROUND QUESTION (ENGAGEMENT)
-# ============================================================================
-elif st.session_state.phase == 2:
-    if "engagement_start_time" not in st.session_state:
-        st.session_state.engagement_start_time = time.time()
-
-    st.markdown("## Background Question")
-    st.markdown("""
-    Please answer the question below in a few sentences.
-    There is no right or wrong answer.
-    """)
-
-    text = st.text_area(
-        "If you could change one thing about the world what would it be and why? Please elaborate in a few sentences so we can better understand your perspective.",
-        height=150
-    )
-
-    if st.button("Continue"):
-        st.session_state.engagement_text = text
-        st.session_state.engagement_word_count = len(text.split())
-        st.session_state.engagement_response_time = time.time() - st.session_state.engagement_start_time
-        st.session_state.phase = 3
         st.rerun()
 
 # ============================================================================
 # PHASE 3 — INITIAL OPINION
 # ============================================================================
-elif st.session_state.phase == 3:
+elif st.session_state.phase == 2:
     if "prompt_key" not in st.session_state:
         prompt_key, norm_key = get_least_used_combination(sheet, PROMPTS, NORMS)
         st.session_state.prompt_key = prompt_key
@@ -248,11 +325,11 @@ elif st.session_state.phase == 3:
 
     if st.button("Start Discussion"):
         st.session_state.initial_opinion = opinions
-        st.session_state.phase = 4
+        st.session_state.phase = 3
         st.rerun() 
 
 # PHASE 4 — CONVERSATION
-elif st.session_state.phase == 4:
+elif st.session_state.phase == 3:
     prompt_data = PROMPTS[st.session_state.prompt_key]
     norm_data = NORMS[st.session_state.norm_key]
     system_prompt = prompt_data["system_prompt_template"].replace(
@@ -336,16 +413,16 @@ elif st.session_state.phase == 4:
             st.rerun()
 
     # Show "End Discussion" button after 3 rounds (before 10 rounds)
-    if round_count >= 3 and st.session_state.phase == 4:
+    if round_count >= 3 and st.session_state.phase == 3:
         if st.button("End Discussion"):
-            st.session_state.phase = 5
+            st.session_state.phase = 4
             st.rerun()
 
 
 # ============================================================================
 # PHASE 5 — FINAL OPINION & SAVE
 # ============================================================================
-elif st.session_state.phase == 5 and not st.session_state.data_saved:
+elif st.session_state.phase == 4 and not st.session_state.data_saved:
     st.markdown("## Final Opinion")
     final_opinion = st.slider(
         "After the discussion, how much do you agree with the statement?",
@@ -369,10 +446,18 @@ elif st.session_state.phase == 5 and not st.session_state.data_saved:
             final_opinion,
             st.session_state.comp_response,
             st.session_state.comp_correct,
-            st.session_state.comp_response_time,
+            # Parallel
+            st.session_state.parallel_comp_time,
+            st.session_state.parallel_engagement_time,
+            # Sequential
+            st.session_state.sequential_comp_time,
+            st.session_state.sequential_engagement_time,
+            # Interaction
+            st.session_state.interaction_comp_time,
+            st.session_state.interaction_engagement_time,
+            # Engagement content
             st.session_state.engagement_text,
             st.session_state.engagement_word_count,
-            st.session_state.engagement_response_time,
             len([m for m in st.session_state.messages if m["role"] == "user"]),
             user_word_count,
             total_duration,
@@ -381,13 +466,13 @@ elif st.session_state.phase == 5 and not st.session_state.data_saved:
 
         save_to_google_sheets(sheet, row)
         st.session_state.data_saved = True
-        st.session_state.phase = 6
+        st.session_state.phase = 5
         st.rerun()
 
 # ============================================================================
 # PHASE 6 — THANK YOU & PROLIFIC REDIRECT
 # ============================================================================
-if st.session_state.phase >= 6:
+if st.session_state.phase >= 5:
 
     st.markdown("## Thank you for your participation")
     st.markdown("""
