@@ -369,6 +369,8 @@ elif st.session_state.phase == 5:
     system_prompt = prompt_data["system_prompt_template"].replace(
         "{NORM_DESCRIPTION}", norm_data["title"]
     ).replace("{INITIAL_OPINION}", str(initial_opinion_treatment))
+    #Print for debugging
+    st.write("System Prompt:", system_prompt)
 
     # Initial greeting
     if not st.session_state.greeting_sent:
