@@ -181,6 +181,7 @@ elif st.session_state.phase == 1:
         if st.session_state.engagement_start_time_seq is None:
             st.session_state.engagement_start_time_seq = time.time()
 
+    st.markdown("---")
     st.markdown("### Question 1")
     st.markdown(COMPREHENSION_QUESTION["question"])
     response = st.radio(
@@ -197,8 +198,8 @@ elif st.session_state.phase == 1:
     if st.session_state.get("comp_response"):
 
         st.markdown("---")
-        st.markdown("## Background Question")
-
+        st.markdown("### Question 2")
+        st.markdown("If you could change one thing about the world what would it be and why? Please elaborate in a few sentences so we can better understand your perspective.")
         def engagement_interaction_callback():
             if st.session_state.engagement_first_interaction is None:
                 st.session_state.engagement_first_interaction = time.time()
@@ -207,7 +208,8 @@ elif st.session_state.phase == 1:
             "If you could change one thing about the world what would it be and why? Please elaborate in a few sentences so we can better understand your perspective.",
             height=150,
             key="engagement_text",
-            on_change=engagement_interaction_callback
+            on_change=engagement_interaction_callback,
+            label_visibility="collapsed"
         )
 
     else:
