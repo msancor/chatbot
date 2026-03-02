@@ -219,6 +219,11 @@ elif st.session_state.phase == 1:
     # SUBMIT BUTTON
     # =========================
     if st.button("Continue"):
+        engagement_text = st.session_state.get("engagement_text", "").strip()
+
+        if engagement_text == "":
+            st.warning("Please provide a response to the background question before continuing.")
+            st.stop()
 
         now = time.time()
 
