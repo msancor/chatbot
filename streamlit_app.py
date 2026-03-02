@@ -182,6 +182,7 @@ elif st.session_state.phase == 1:
             st.session_state.engagement_start_time_seq = time.time()
 
     st.markdown("### Question 1")
+    st.markdown(COMPREHENSION_QUESTION["question"])
     response = st.radio(
         COMPREHENSION_QUESTION["question"],
         COMPREHENSION_QUESTION["options"],
