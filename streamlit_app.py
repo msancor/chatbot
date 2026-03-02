@@ -462,7 +462,7 @@ elif st.session_state.phase == 4 and not st.session_state.data_saved:
             json.dumps(st.session_state.initial_opinion, ensure_ascii=False),
             json.dumps(st.session_state.messages, ensure_ascii=False),
             json.dumps(final_opinions, ensure_ascii=False),  # ← store all final opinions
-            st.session_state.comp_response,
+            str(st.session_state.get("comp_response", "")),
             st.session_state.comp_correct,
 
             # Parallel
@@ -478,7 +478,7 @@ elif st.session_state.phase == 4 and not st.session_state.data_saved:
             st.session_state.interaction_engagement_time,
 
             # Engagement content
-            st.session_state.engagement_text,
+            str(st.session_state.get("engagement_text", "")),
             st.session_state.engagement_word_count,
 
             len([m for m in st.session_state.messages if m["role"] == "user"]),
