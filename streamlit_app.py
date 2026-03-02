@@ -354,6 +354,7 @@ elif st.session_state.phase == 3:
 
 #PHASE 4 - INSTRUCTIONS FOR CONVERSATION
 elif st.session_state.phase == 4:
+    st.markdown("## Instructions for Conversation")
     st.markdown('''Next, you will participate in a conversation with an advanced AI about some of the topics and opinions that you have already answered questions about earlier. The purpose of this dialogue is to see how humans and AI interact. Please be open and honest in your responses. Remember that the AI is neutral and non-judgmental, and your participation is confidential. When the conversation begins, you should see an AI icon with chat bubbles "..." indicating it's generating responses. It can sometimes take up to 30s. If you don't see any icons or if it's taking too long to generate responses, try refreshing the page. If you run into further issues, please let us know.\n Please read each AI message thoroughly, as you may have to scroll down to read its full message. You will be asked some questions about your interaction.\n After a minimum of 3 conversational rounds you can exit the conversation and proceed to the next section. You can have a maximum of 10 rounds of conversation.''')
     if st.button("Start Conversation"):
         st.session_state.phase = 5  # move to conversation phase
