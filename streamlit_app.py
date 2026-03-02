@@ -222,7 +222,7 @@ elif st.session_state.phase == 1:
         engagement_text = st.session_state.get("engagement_text", "").strip()
 
         if engagement_text == "":
-            st.warning("Please provide a response to the background question before continuing.")
+            st.warning("Please provide a response to all the questions before continuing.")
             st.stop()
 
         now = time.time()
@@ -283,29 +283,6 @@ elif st.session_state.phase == 2:
         st.session_state.norm_key = norm_key
         st.session_state.start_time = time.time()
 
-    norm_data = NORMS[st.session_state.norm_key]
-
-    # Remove current norm and sample 2 more
-    new_norms = {k: v for k, v in NORMS.items() if k != st.session_state.norm_key}
-    sampled_norms = random.sample(list(new_norms.values()), 2)
-    sampled_norms.append(norm_data)  # append the original norm object
-    random.shuffle(sampled_norms)
-
-    st.markdown("## Your Initial Opinion")
-    # Dict to store opinions
-    opinions = {}
-
-    for i, norm in enumerate(sampled_norms):
-        st.markdown(
-            f"**{norm['title']}**\nWe ask you to indicate how appropriate you consider this behavior, where 0 means very inappropriate and 100 means highly appropriate."
-        )
-        # Unique key elif st.session_state.phase == 3:
-    if "prompt_key" not in st.session_state:
-        prompt_key, norm_key = get_least_used_combination(sheet, PROMPTS, NORMS)
-        st.session_state.prompt_key = prompt_key
-        st.session_state.norm_key = norm_key
-        st.session_state.start_time = time.time()
-
     # Store sampled & shuffled norms only once
     if "sampled_norms" not in st.session_state:
         norm_data = NORMS[st.session_state.norm_key]
@@ -321,12 +298,13 @@ elif st.session_state.phase == 2:
         sampled_norms = st.session_state.sampled_norms
 
     st.markdown("## Your Initial Opinion")
+    st.markdown("We ask you to indicate how appropriate you consider each of the following behaviors, where 0 means very inappropriate and 100 means highly appropriate.")
     opinions = {}
 
     # Loop over stored sampled norms
     for i, norm in enumerate(sampled_norms):
         st.markdown(
-            f"**{norm['title']}**\nWe ask you to indicate how appropriate you consider this behavior, where 0 means very inappropriate and 100 means highly appropriate."
+            f"**{norm['title']}**"
         )
         opinions[norm['title']] = st.slider(
             norm['title'],
