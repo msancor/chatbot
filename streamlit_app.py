@@ -368,7 +368,7 @@ elif st.session_state.phase == 3:
         st.session_state.pending_user_message = None
 
         # Generate assistant response only if < 10 rounds
-        if round_count < 4:
+        if round_count < 10:
             with st.chat_message("assistant"):
                 stream = openai_client.chat.completions.create(
                     model="gpt-3.5-turbo",
@@ -387,7 +387,7 @@ elif st.session_state.phase == 3:
             st.rerun()
         else:
             # 10th round completed — final assistant message
-            final_message = "Thank you for your thoughtful responses! The discussion is now complete."
+            final_message = "Thank you for your thoughtful responses! The discussion is now complete. Please click the button below to proceed with the study."
             st.session_state.messages.append({
                 "role": "assistant",
                 "content": final_message,
@@ -409,14 +409,36 @@ elif st.session_state.phase == 3:
 # PHASE 5 — FINAL OPINION & SAVE
 # ============================================================================
 elif st.session_state.phase == 4 and not st.session_state.data_saved:
+
     st.markdown("## Final Opinion")
-    final_opinion = st.slider(
-        "After the discussion, how much do you agree with the statement?",
-        1, 100, st.session_state.initial_opinion
-    )
+    st.markdown("Please indicate your current opinion on the following items.")
+
+    sampled_norms = st.session_state.sampled_norms
+    initial_opinions = st.session_state.initial_opinion
+
+    final_opinions = {}
+
+    # Show sliders in SAME ORDER as Phase 3
+    for i, norm in enumerate(sampled_norms):
+
+        title = norm["title"]
+        initial_value = initial_opinions.get(title, 50)
+
+        st.markdown(
+            f"**{title}**\nAfter the discussion, how appropriate do you consider this behavior?"
+        )
+
+        final_opinions[title] = st.slider(
+            title,
+            0, 100,
+            initial_value,  # ← initialize at original response
+            key=f"final_slider_{i}"
+        )
 
     if st.button("Submit Responses"):
+
         total_duration = time.time() - st.session_state.start_time
+
         user_word_count = sum(
             len(m["content"].split())
             for m in st.session_state.messages
@@ -427,23 +449,28 @@ elif st.session_state.phase == 4 and not st.session_state.data_saved:
             st.session_state.prolific_id,
             st.session_state.prompt_key,
             st.session_state.norm_key,
-            st.session_state.initial_opinion,
+            json.dumps(st.session_state.initial_opinion, ensure_ascii=False),
             json.dumps(st.session_state.messages, ensure_ascii=False),
-            final_opinion,
+            json.dumps(final_opinions, ensure_ascii=False),  # ← store all final opinions
             st.session_state.comp_response,
             st.session_state.comp_correct,
+
             # Parallel
             st.session_state.parallel_comp_time,
             st.session_state.parallel_engagement_time,
+
             # Sequential
             st.session_state.sequential_comp_time,
             st.session_state.sequential_engagement_time,
+
             # Interaction
             st.session_state.interaction_comp_time,
             st.session_state.interaction_engagement_time,
+
             # Engagement content
             st.session_state.engagement_text,
             st.session_state.engagement_word_count,
+
             len([m for m in st.session_state.messages if m["role"] == "user"]),
             user_word_count,
             total_duration,
@@ -451,10 +478,10 @@ elif st.session_state.phase == 4 and not st.session_state.data_saved:
         ]
 
         save_to_google_sheets(sheet, row)
-        st.session_state.data_saved = True
-        st.session_state.phase = 5
-        st.rerun()
 
+        st.session_state.data_saved = True
+        st.session_state.phase = 6
+        st.rerun()
 # ============================================================================
 # PHASE 6 — THANK YOU & PROLIFIC REDIRECT
 # ============================================================================
