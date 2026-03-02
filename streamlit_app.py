@@ -113,7 +113,18 @@ DEFAULTS = {
     "greeting_sent": False,
     "conversation_ended": False,
     "data_saved": False,
-    "generate_assistant": False
+    "generate_assistant": False,
+    "comp_response": None,
+    "comp_correct": None,
+    "engagement_text": "",
+    "engagement_word_count": 0,
+    # Timing variables
+    "page_load_time": None,
+    "comp_start_time_seq": None,
+    "comp_first_interaction": None,
+    "engagement_start_time_seq": None,
+    "engagement_first_interaction": None,
+
 }
 
 def init_state(key, default):
@@ -424,12 +435,8 @@ elif st.session_state.phase == 4 and not st.session_state.data_saved:
         title = norm["title"]
         initial_value = initial_opinions.get(title, 50)
 
-        st.markdown(
-            f"**{title}**"
-        )
-
         final_opinions[title] = st.slider(
-            title,
+            f"**{title}**",
             0, 100,
             initial_value,  # ← initialize at original response
             key=f"final_slider_{i}"
