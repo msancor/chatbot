@@ -124,8 +124,10 @@ def init_state(key, default):
     if key not in st.session_state:
         st.session_state[key] = default
 
-for k, v in DEFAULTS.items():
-    init_state(k, v)
+if "initialized" not in st.session_state:
+    for k, v in DEFAULTS.items():
+        st.session_state[k] = v
+    st.session_state["initialized"] = True
 
 # ============================================================================
 # PHASE 0 — WELCOME & INSTRUCTIONS
