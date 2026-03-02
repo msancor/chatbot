@@ -195,6 +195,8 @@ elif st.session_state.phase == 1:
         on_change=comp_interaction_callback,
         label_visibility="collapsed"
     )
+    st.write("After radio:", st.session_state.get("comp_response"))
+
 
     # =========================
     # QUESTION 2 — BACKGROUND
@@ -215,6 +217,7 @@ elif st.session_state.phase == 1:
             on_change=lambda: st.session_state.update({"engagement_first_interaction": time.time()}),
             label_visibility="collapsed"
         )
+        st.write("After text_area:", st.session_state.get("engagement_text"))
 
     else:
         st.info("Please answer the first question to continue.")
@@ -224,8 +227,8 @@ elif st.session_state.phase == 1:
     # =========================
     if st.button("Continue"):
        ## Read values directly from the widgets
-        comp_response = st.session_state.comp_response
-        engagement_text = st.session_state.engagement_text.strip()
+        comp_response = st.session_state.get("comp_response")
+        engagement_text = st.session_state.get("engagement_text", "").strip()
 
         # Validation
         if not comp_response:
