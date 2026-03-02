@@ -411,7 +411,7 @@ elif st.session_state.phase == 3:
 elif st.session_state.phase == 4 and not st.session_state.data_saved:
 
     st.markdown("## Final Opinion")
-    st.markdown("Please indicate your current opinion on the following items.")
+    st.markdown("After the discussion, how appropriate do you consider this behaviors? You can adjust the sliders to reflect any change in your opinion after the discussion, where 0 means very inappropriate and 100 means highly appropriate.")
 
     sampled_norms = st.session_state.sampled_norms
     initial_opinions = st.session_state.initial_opinion
@@ -425,7 +425,7 @@ elif st.session_state.phase == 4 and not st.session_state.data_saved:
         initial_value = initial_opinions.get(title, 50)
 
         st.markdown(
-            f"**{title}**\nAfter the discussion, how appropriate do you consider this behavior?"
+            f"**{title}**"
         )
 
         final_opinions[title] = st.slider(
