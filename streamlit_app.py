@@ -303,13 +303,10 @@ elif st.session_state.phase == 2:
 
     # Loop over stored sampled norms
     for i, norm in enumerate(sampled_norms):
-        st.markdown(
-            f"**{norm['title']}**"
-        )
         opinions[norm['title']] = st.slider(
-            norm['title'],
+            f"**{norm['title']}**",
             0, 100, 50,
-            key=f"slider_{i}"
+            key=f"slider_{i}",
         )
 
     if st.button("Start Discussion"):
