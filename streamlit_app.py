@@ -370,7 +370,7 @@ elif st.session_state.phase == 5:
         "{NORM_DESCRIPTION}", norm_data["title"]
     ).replace("{INITIAL_OPINION}", str(initial_opinion_treatment))
     #Print for debugging
-    st.write("System Prompt:", system_prompt)
+    #st.write("System Prompt:", system_prompt)
 
     # Initial greeting
     if not st.session_state.greeting_sent:
@@ -512,7 +512,8 @@ elif st.session_state.phase == 8:
     att_check_response = st.radio(
         "Which topic did you discuss with the AI?",
         att_check_options,
-        key="att_check_response"
+        key="att_check_response",
+        label_visibility="collapsed"
     )
 
     if st.button("Continue"):
@@ -523,9 +524,9 @@ elif st.session_state.phase == 8:
 #Final Questionnaire (Multiple option questions)
 elif st.session_state.phase == 9:
     st.markdown("## Final Questionnaire")
-    st.markdown("###  Indicate your degree of agreement with the following statements:")
+    st.markdown("###  Indicate your degree of agreement with the following statements (where 1 means strongly disagree and 7 means strongly agree).")
     st.markdown("---")
-    st.markdown("The messages I read:")
+    st.markdown("#### The messages I read:")
     involvement_responses = {}
     for i, statement in enumerate(["Got me involved", "Seemed relevant to me", "Interested me"]):
         involvement_responses[statement] = st.slider(
@@ -534,7 +535,7 @@ elif st.session_state.phase == 9:
             key=f"involvement_slider_{i}"
         )
     st.markdown("---")
-    st.markdown("The messages I read:")
+    st.markdown("####The messages I read:")
     threat_responses = {}
     for i, statement in enumerate(["Tried to manipulate me", "Tried to pressure me", "Undermined my sense of self-worth", "Made me feel less than capable", "Made me think I should change"]):
         threat_responses[statement] = st.slider(
@@ -544,7 +545,7 @@ elif st.session_state.phase == 9:
         )
 
     st.markdown("---")
-    st.markdown("To what extent the source of these messages is:")
+    st.markdown("#### To what extent the source of these messages is:")
     source_responses = {}
     for i, statement in enumerate(["Reliable", "Trusted", "Honest", "Competent", "Expert", "Informed"]):
         source_responses[statement] = st.slider(
@@ -571,6 +572,12 @@ elif st.session_state.phase == 9:
             json.dumps(st.session_state.initial_opinion, ensure_ascii=False),
             json.dumps(st.session_state.messages, ensure_ascii=False),
             json.dumps(st.session_state.final_opinion, ensure_ascii=False),  # ← store all final opinions
+            json.dumps(st.session_state.opinions_others, ensure_ascii=False),
+            json.dumps(st.session_state.opinions_others_final, ensure_ascii=False),
+            str(st.session_state.get("att_check_response_saved", "")),
+            json.dumps(involvement_responses, ensure_ascii=False),
+            json.dumps(threat_responses, ensure_ascii=False),
+            json.dumps(source_responses, ensure_ascii=False),
             str(st.session_state.get("comp_response_saved", "")),
             st.session_state.comp_correct,
 
