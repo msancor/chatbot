@@ -175,6 +175,13 @@ elif st.session_state.phase == 1:
         st.session_state.engagement_first_interaction = None
 
     # =========================
+    # PLACEHOLDERS
+    # =========================
+    comp_container = st.empty()
+    engagement_container = st.empty()
+
+
+    # =========================
     # QUESTION 1 — COMPREHENSION
     # =========================
     st.markdown("## Background Questions")
@@ -189,15 +196,16 @@ elif st.session_state.phase == 1:
             st.session_state.engagement_start_time_seq = time.time()
 
     st.markdown("---")
-    st.markdown("### Question 1")
-    st.markdown(COMPREHENSION_QUESTION["question"])
-    response = st.radio(
-        COMPREHENSION_QUESTION["question"],
-        COMPREHENSION_QUESTION["options"],
-        key="comp_response",
-        on_change=comp_interaction_callback,
-        label_visibility="collapsed"
-    )
+    with comp_container.container():
+        st.markdown("### Question 1")
+        st.markdown(COMPREHENSION_QUESTION["question"])
+        response = st.radio(
+            COMPREHENSION_QUESTION["question"],
+            COMPREHENSION_QUESTION["options"],
+            key="comp_response",
+            on_change=comp_interaction_callback,
+            label_visibility="collapsed"
+        )
 
 
     # =========================
@@ -206,21 +214,23 @@ elif st.session_state.phase == 1:
     if st.session_state.get("comp_response"):
 
         st.markdown("---")
-        st.markdown("### Question 2")
-        st.markdown("If you could change one thing about the world what would it be and why? Please elaborate in a few sentences so we can better understand your perspective.")
-        def engagement_interaction_callback():
-            if st.session_state.engagement_first_interaction is None:
-                st.session_state.engagement_first_interaction = time.time()
+        with engagement_container.container():
+            st.markdown("### Question 2")
+            st.markdown("If you could change one thing about the world what would it be and why? Please elaborate in a few sentences so we can better understand your perspective.")
+            def engagement_interaction_callback():
+                if st.session_state.engagement_first_interaction is None:
+                    st.session_state.engagement_first_interaction = time.time()
 
-        text = st.text_area(
-            "If you could change one thing about the world what would it be and why? Please elaborate in a few sentences so we can better understand your perspective.",
-            height=150,
-            key="engagement_text",
-            on_change=lambda: st.session_state.update({"engagement_first_interaction": time.time()}),
-            label_visibility="collapsed"
-        )
+            text = st.text_area(
+                "If you could change one thing about the world what would it be and why? Please elaborate in a few sentences so we can better understand your perspective.",
+                height=150,
+                key="engagement_text",
+                on_change=lambda: st.session_state.update({"engagement_first_interaction": time.time()}),
+                label_visibility="collapsed"
+            )
 
     else:
+        engagement_container.empty()
         st.info("Please answer the first question to continue.")
 
     # =========================
@@ -228,8 +238,8 @@ elif st.session_state.phase == 1:
     # =========================
     if st.button("Continue"):
        ## Read values directly from the widgets
-        comp_response = st.session_state.get("comp_response")
-        engagement_text = st.session_state.get("engagement_text", "").strip()
+        comp_response = str(st.session_state.get("comp_response", "")).strip()
+        engagement_text = str(st.session_state.get("engagement_text", "")).strip()
 
         # Validation
         if not comp_response:
