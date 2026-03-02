@@ -187,6 +187,7 @@ elif st.session_state.phase == 1:
         COMPREHENSION_QUESTION["options"],
         key="comp_response",
         on_change=comp_interaction_callback,
+        label_visibility="collapsed"
     )
 
     # =========================
