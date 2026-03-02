@@ -516,7 +516,7 @@ elif st.session_state.phase == 8:
     )
 
     if st.button("Continue"):
-        st.session_state.att_check_response = att_check_response
+        st.session_state["att_check_response_saved"] = st.session_state.get("att_check_response", "")
         st.session_state.phase = 9  # move to final questionnaire phase
         st.rerun()
 
