@@ -236,16 +236,16 @@ elif st.session_state.phase == 1:
     # SUBMIT BUTTON
     # =========================
     if st.button("Continue"):
-       ## Read values directly from the widgets
-        comp_response = str(st.session_state.get("comp_response", "")).strip()
-        engagement_text = str(st.session_state.get("engagement_text", "")).strip()
+        # Force-save responses to session state
+        st.session_state["comp_response_saved"] = st.session_state.get("comp_response", "")
+        st.session_state["engagement_text_saved"] = st.session_state.get("engagement_text", "")
 
         # Validation
-        if not comp_response:
+        if not st.session_state["comp_response_saved"]:
             st.warning("Please answer the first question before continuing.")
             st.stop()
 
-        if engagement_text == "":
+        if st.session_state["engagement_text_saved"] == "":
             st.warning("Please provide a response to the second question before continuing.")
             st.stop()
 
@@ -283,7 +283,7 @@ elif st.session_state.phase == 1:
         )
 
         st.session_state.engagement_word_count = len(
-            st.session_state.get("engagement_text", "").split()
+            st.session_state.get("engagement_text_saved", "").split()
         )
 
         # Store ALL timing variables
@@ -302,53 +302,50 @@ elif st.session_state.phase == 1:
 # ============================================================================
 elif st.session_state.phase == 2:
     st.write("PHASE", st.session_state.phase)
-
-    # Show Phase 1 responses for debugging / persistence
-    st.write("comp_response:", st.session_state.get("comp_response"))
-    st.write("engagement_text:", st.session_state.get("engagement_text"))
-
-    # -------------------------
-    # Initialize prompt & norms once
-    # -------------------------
+    st.write("comp_response:", st.session_state.get("comp_response_saved"))
+    st.write("engagement_text:", st.session_state.get("engagement_text_saved"))
     if "prompt_key" not in st.session_state:
         prompt_key, norm_key = get_least_used_combination(sheet, PROMPTS, NORMS)
         st.session_state.prompt_key = prompt_key
         st.session_state.norm_key = norm_key
         st.session_state.start_time = time.time()
 
+    # Store sampled & shuffled norms only once
     if "sampled_norms" not in st.session_state:
         norm_data = NORMS[st.session_state.norm_key]
+
+        # Remove current norm and sample 2 more
         new_norms = {k: v for k, v in NORMS.items() if k != st.session_state.norm_key}
         sampled_norms = random.sample(list(new_norms.values()), 2)
-        sampled_norms.append(norm_data)
+        sampled_norms.append(norm_data)  # append the original norm object
         random.shuffle(sampled_norms)
+
         st.session_state.sampled_norms = sampled_norms
     else:
         sampled_norms = st.session_state.sampled_norms
 
     st.markdown("## Your Initial Opinion")
+    st.markdown("We ask you to indicate how appropriate you consider each of the following behaviors, where 0 means very inappropriate and 100 means highly appropriate.")
     opinions = {}
 
-    # -------------------------
-    # Sliders for sampled norms
-    # -------------------------
+    # Loop over stored sampled norms
     for i, norm in enumerate(sampled_norms):
         opinions[norm['title']] = st.slider(
             f"**{norm['title']}**",
             0, 100, 50,
-            key=f"slider_{i}"
+            key=f"slider_{i}",
         )
 
     if st.button("Start Discussion"):
         st.session_state.initial_opinion = opinions
         st.session_state.phase = 3
-        st.rerun()
+        st.rerun() 
 
 # PHASE 4 — CONVERSATION
 elif st.session_state.phase == 3:
     st.write("PHASE", st.session_state.phase)
-    st.write("comp_response:", st.session_state.get("comp_response"))
-    st.write("engagement_text:", st.session_state.get("engagement_text"))       
+    st.write("comp_response:", st.session_state.get("comp_response_saved"))
+    st.write("engagement_text:", st.session_state.get("engagement_text_saved"))       
     prompt_data = PROMPTS[st.session_state.prompt_key]
     norm_data = NORMS[st.session_state.norm_key]
     system_prompt = prompt_data["system_prompt_template"].replace(
@@ -443,8 +440,8 @@ elif st.session_state.phase == 3:
 # ============================================================================
 elif st.session_state.phase == 4 and not st.session_state.data_saved:
     st.write("PHASE", st.session_state.phase)
-    st.write("comp_response:", st.session_state.get("comp_response"))
-    st.write("engagement_text:", st.session_state.get("engagement_text"))
+    st.write("comp_response:", st.session_state.get("comp_response_saved"))
+    st.write("engagement_text:", st.session_state.get("engagement_text_saved"))
 
     st.markdown("## Final Opinion")
     st.markdown("After the discussion, how appropriate do you consider this behaviors? You can adjust the sliders to reflect any change in your opinion after the discussion, where 0 means very inappropriate and 100 means highly appropriate.")
@@ -484,7 +481,7 @@ elif st.session_state.phase == 4 and not st.session_state.data_saved:
             json.dumps(st.session_state.initial_opinion, ensure_ascii=False),
             json.dumps(st.session_state.messages, ensure_ascii=False),
             json.dumps(final_opinions, ensure_ascii=False),  # ← store all final opinions
-            str(st.session_state.get("comp_response", "")),
+            str(st.session_state.get("comp_response_saved", "")),
             st.session_state.comp_correct,
 
             # Parallel
@@ -500,7 +497,7 @@ elif st.session_state.phase == 4 and not st.session_state.data_saved:
             st.session_state.interaction_engagement_time,
 
             # Engagement content
-            str(st.session_state.get("engagement_text", "")),
+            str(st.session_state.get("engagement_text_saved", "")),
             st.session_state.engagement_word_count,
 
             len([m for m in st.session_state.messages if m["role"] == "user"]),
