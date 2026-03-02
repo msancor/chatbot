@@ -365,9 +365,10 @@ elif st.session_state.phase == 4:
 elif st.session_state.phase == 5:  
     prompt_data = PROMPTS[st.session_state.prompt_key]
     norm_data = NORMS[st.session_state.norm_key]
+    initial_opinion_treatment = st.session_state.initial_opinion.get(norm_data["title"], 50)
     system_prompt = prompt_data["system_prompt_template"].replace(
         "{NORM_DESCRIPTION}", norm_data["title"]
-    )
+    ).replace("{INITIAL_OPINION}", str(initial_opinion_treatment))
 
     # Initial greeting
     if not st.session_state.greeting_sent:
