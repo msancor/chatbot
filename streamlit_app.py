@@ -535,7 +535,7 @@ elif st.session_state.phase == 9:
             key=f"involvement_slider_{i}"
         )
     st.markdown("---")
-    st.markdown("####The messages I read:")
+    st.markdown("#### The messages I read:")
     threat_responses = {}
     for i, statement in enumerate(["Tried to manipulate me", "Tried to pressure me", "Undermined my sense of self-worth", "Made me feel less than capable", "Made me think I should change"]):
         threat_responses[statement] = st.slider(
